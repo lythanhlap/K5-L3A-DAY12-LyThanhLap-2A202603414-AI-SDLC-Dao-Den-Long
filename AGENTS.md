@@ -1,6 +1,6 @@
 # AGENTS.md: Đảo Đèn Lồng
 
-3D third-person game (Three.js + Vite) with a deterministic headless mode graded by **Test Contract v1.1** (3 nights).
+3D third-person game (Three.js + Vite) with a deterministic headless mode graded by **Test Contract v1.2** (3 nights, lantern fuel; see `docs/adr/`).
 Requirements live on the lab board. Per-phase spec and assumptions live in `docs/notes/phase-N.md`. **Read the latest one first.**
 
 ## Commands
@@ -25,6 +25,10 @@ Requirements live on the lab board. Per-phase spec and assumptions live in `docs
 - Timers decrement in step 2. An action set in step k is first visible in the snapshot at k+1. Count this when computing expectations by hand.
 - Creative extras must not change headless output: keep them in `src/web/`.
 - Never hand-edit files in `docs/proof/` (a hook blocks it). Regenerate them with `npm run proof`.
+- Lantern fuel is integer 1/60 units (`fuelU`); never store fuel as a float. Safe zone = lit and fuel >= 30 (`inSafeZone`).
+- Rule replaced by a ticket → write an ADR in `docs/adr/` and a CHANGELOG entry, and delete or update old tests with the reason written next to them.
+- When patching code with scripts, anchor each replacement to a unique string and assert it matched exactly once.
+- Measure FPS only in a foreground tab (background tabs are throttled to ~30 FPS).
 - Never weaken a test to make it pass. If a ticket replaces a rule, update the test and write the reason in the phase notes ("Thay đổi so với…" table).
 - The renderer feeds edge-triggered buttons. While paused it must still deliver the button release (see `togglePause`).
 - Small commits, one concern each. Don't commit `node_modules`, `dist`, `.env`, or `game_charactor/` (licence unknown).
