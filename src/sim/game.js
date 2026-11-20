@@ -46,15 +46,16 @@ export class ScenarioError extends Error {}
  * by the headless CLI, so the Ticket-02 standard numbers (20 motes, cap 30, +1 every 240 ticks) and the
  * hidden tests are unaffected. Extra motes are scattered 1.5-4 m around the standard spawn points.
  */
-export const ASSIST = Object.freeze({ extraInitial: 25, cap: 60, spawnEvery: 120, spawnBatch: 2 });
+export const ASSIST = Object.freeze({ extraInitial: 50, cap: 100, spawnEvery: 60, spawnBatch: 3 });
 
-export function createGame({ seed = 1, night = 1, scenario = null, bench = false, assist = false } = {}) {
+export function createGame({ seed = 1, night = 1, scenario = null, bench = false, assist = false, obstacles = [] } = {}) {
   const map = NIGHTS[night];
   if (!map) throw new ScenarioError(`unknown night ${night}`);
   const T = TUNING;
   const g = {
     night,
     map,
+    obstacles,
     bench, // Ticket-04 bench scene: no spawns, damage, pickup, fuel decay or night end
     assist, // easy mode (web only): more motes
     rand: mulberry32(seed),
@@ -69,6 +70,7 @@ export function createGame({ seed = 1, night = 1, scenario = null, bench = false
       pos: [...map.start],
       vel: [0, 0, 0],
       grounded: true,
+      blocked: false,
       facing: 0, // atan2(x, z): 0 = +Z
       flames: T.flames,
       carried: 0,
@@ -222,7 +224,7 @@ function addAssistMote(g, born) {
     const x = r3(base[0] + r * Math.cos(a));
     const z = r3(base[2] + r * Math.sin(a));
     const gh = g.map.ground(x, z);
-    if (gh == null || g.map.solid(x, z, gh)) continue;
+    if (gh == null || playerBlocked(g, x, z, gh)) continue;
     addMote(g, [x, gh, z], 'random', null, -1, born);
     return;
   }
@@ -308,9 +310,35 @@ function startEviction(g, l) {
   }
 }
 
+// The player's horizontal footprint is a disc. Scenery is supplied by the playable map.
+function playerGround(g, x, z) {
+  let ground = g.map.ground(x, z);
+  const radius = 0.45;
+  for (const o of g.obstacles) {
+    const dx = x - o.x;
+    const dz = z - o.z;
+    let top;
+    if (o.radius != null) {
+      if (dx * dx + dz * dz > (o.radius + radius) ** 2) continue;
+      top = o.y + o.height;
+    } else {
+      // Project into the cottage's local axes; its four roof faces meet at the centre.
+      const u = Math.abs(dx * o.cos - dz * o.sin);
+      const v = Math.abs(dx * o.sin + dz * o.cos);
+      const edgeX = Math.max(0, u - o.halfWidth);
+      const edgeZ = Math.max(0, v - o.halfDepth);
+      if (edgeX * edgeX + edgeZ * edgeZ > radius * radius) continue;
+      const slope = Math.max(0, (u - radius) / o.halfWidth, (v - radius) / o.halfDepth);
+      top = o.y + o.eaves + o.rise * (1 - slope);
+    }
+    ground = Math.max(ground ?? -Infinity, top);
+  }
+  return ground;
+}
+
 function playerBlocked(g, x, z, y) {
   if (g.map.solid(x, z, y)) return true;
-  const gh = g.map.ground(x, z);
+  const gh = playerGround(g, x, z);
   return gh != null && gh > y + R.stepUp;
 }
 
@@ -422,6 +450,7 @@ export function step(g, input) {
 
   // 3. move player (jump, dash, pads, wind) then fall check
   let hitThisTick = false;
+  p.blocked = false;
   if (!waiting) {
     let mx = Math.max(-1, Math.min(1, input.move?.[0] ?? 0));
     let mz = Math.max(-1, Math.min(1, input.move?.[1] ?? 0));
@@ -473,14 +502,15 @@ export function step(g, input) {
     const oz = p.pos[2];
     const nx = ox + hx / TICK_RATE;
     const nz = oz + hz / TICK_RATE;
-    if (!playerBlocked(g, nx, nz, p.pos[1])) {
+    p.blocked = playerBlocked(g, nx, nz, p.pos[1]);
+    if (!p.blocked) {
       p.pos[0] = nx;
       p.pos[2] = nz;
     } else if (!playerBlocked(g, nx, oz, p.pos[1])) p.pos[0] = nx;
     else if (!playerBlocked(g, ox, nz, p.pos[1])) p.pos[2] = nz;
 
-    // vertical
-    const gh = g.map.ground(p.pos[0], p.pos[2]);
+    // vertical: use the same surface for walking, landing and stepping off a roof.
+    const gh = playerGround(g, p.pos[0], p.pos[2]);
     if (p.grounded) {
       if (gh == null || gh < p.pos[1] - R.stepUp) {
         p.grounded = false;
@@ -492,9 +522,8 @@ export function step(g, input) {
       else {
         p.pos[1] += p.vel[1] / TICK_RATE;
         p.vel[1] -= R.gravity / TICK_RATE;
-        const gh2 = g.map.ground(p.pos[0], p.pos[2]);
-        if (gh2 != null && p.pos[1] <= gh2 && p.pos[1] >= gh2 - 1) {
-          p.pos[1] = gh2;
+        if (gh != null && p.pos[1] <= gh && p.pos[1] >= gh - 1) {
+          p.pos[1] = gh;
           p.vel[1] = 0;
           p.grounded = true;
           p.launch = null;
