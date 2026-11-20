@@ -12,9 +12,10 @@ const run = (g, n, input = idle) => {
   return ev;
 };
 
-test('game.contract.json is v1.2 and its tuning mirrors src/sim/tuning.js (standard numbers)', () => {
+test('game.contract.json is v1.3 and its tuning mirrors src/sim/tuning.js (standard numbers)', () => {
   const c = JSON.parse(readFileSync(new URL('../game.contract.json', import.meta.url), 'utf8'));
-  assert.equal(c.contract_version, '1.2');
+  assert.equal(c.contract_version, '1.3');
+  assert.ok(c.bench_cmd && c.soak_cmd, 'v1.3 adds bench_cmd and soak_cmd');
   assert.deepEqual(c.tuning, JSON.parse(JSON.stringify(TUNING)));
   for (const k of ['team', 'build_cmd', 'run_cmd', 'headless_cmd']) assert.ok(c[k] && !/lệnh/.test(c[k]), k);
   // Ticket-02 Part 1 standard numbers (guards against accidental edits)
