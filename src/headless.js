@@ -1,12 +1,14 @@
 #!/usr/bin/env node
-// Headless runner per Test Contract v1.0.
-// Usage: node src/headless.js --seed <int> --night 1 [--scenario f] [--inputs f] --ticks <int> --out <f.jsonl> [--snapshot-every 10]
+// Headless runner per Test Contract v1.1.
+// Usage: node src/headless.js --seed <int> --night <1|2|3> [--scenario f] [--inputs f] --ticks <int> --out <f.jsonl> [--snapshot-every 10]
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createGame, step, snapshot, ScenarioError } from './sim/game.js';
 
 class FormatError extends Error {}
+const SHADE_STATES = ['spawning', 'wander', 'chase', 'recoil', 'stunned'];
+const DRIFTER_STATES = ['idle', 'chase', 'flee', 'removed'];
 
 function fail(code, msg) {
   process.stderr.write(`error: ${msg}\n`);
@@ -69,7 +71,7 @@ export function validateInputs(doc) {
     last = f.tick;
     if ('move' in f) need(isVec(f.move, 2), `inputs: frame ${i} move must be [x, z]`);
     if ('cam_yaw_deg' in f) need(isNum(f.cam_yaw_deg), `inputs: frame ${i} cam_yaw_deg must be a number`);
-    for (const b of ['jump', 'interact', 'pulse', 'dash']) {
+    for (const b of ['jump', 'interact', 'pulse', 'dash', 'pause']) {
       if (b in f) need(isBool(f[b]), `inputs: frame ${i} ${b} must be boolean`);
     }
   }
@@ -84,17 +86,41 @@ export function validateScenario(doc) {
     if ('pos' in p) need(isVec(p.pos, 3), 'scenario: player.pos must be [x,y,z]');
     if ('carried' in p) need(isCount(p.carried), 'scenario: player.carried must be a non-negative integer');
     if ('flames' in p) need(isCount(p.flames), 'scenario: player.flames must be a non-negative integer');
+    for (const k of ['invuln_ticks', 'dash_cd_ticks', 'pulse_cd_ticks', 'charm_ticks']) {
+      if (k in p) need(isCount(p[k]), `scenario: player.${k} must be a non-negative integer`);
+    }
   }
-  for (const k of ['random_motes', 'random_shades']) if (k in doc) need(isBool(doc[k]), `scenario: ${k} must be boolean`);
+  for (const k of ['random_motes', 'random_shades', 'random_drifters', 'wind_enabled']) {
+    if (k in doc) need(isBool(doc[k]), `scenario: ${k} must be boolean`);
+  }
   if ('motes' in doc) {
     need(Array.isArray(doc.motes), 'scenario: motes must be an array');
-    doc.motes.forEach((m, i) => need(isVec(m, 3), `scenario: motes[${i}] must be [x,y,z]`));
+    doc.motes.forEach((m, i) =>
+      need(isVec(m, 3) || (isObj(m) && isVec(m.pos, 3)), `scenario: motes[${i}] must be [x,y,z] or {pos}`));
+  }
+  if ('drifters' in doc) {
+    need(Array.isArray(doc.drifters), 'scenario: drifters must be an array');
+    doc.drifters.forEach((d, i) => {
+      need(isObj(d) && isVec(d.pos, 3), `scenario: drifters[${i}].pos must be [x,y,z]`);
+      if ('state' in d) need(DRIFTER_STATES.includes(d.state), `scenario: drifters[${i}].state invalid`);
+      if ('stolen' in d) need(isCount(d.stolen), `scenario: drifters[${i}].stolen must be a non-negative integer`);
+    });
+  }
+  if ('charms' in doc) {
+    need(Array.isArray(doc.charms), 'scenario: charms must be an array');
+    doc.charms.forEach((c, i) => {
+      need(isObj(c), `scenario: charms[${i}] must be an object`);
+      if ('pos' in c) need(isVec(c.pos, 3), `scenario: charms[${i}].pos must be [x,y,z]`);
+      if ('available' in c) need(isBool(c.available), `scenario: charms[${i}].available must be boolean`);
+    });
   }
   if ('shades' in doc) {
     need(Array.isArray(doc.shades), 'scenario: shades must be an array');
     doc.shades.forEach((s, i) => {
       need(isObj(s) && isVec(s.pos, 3), `scenario: shades[${i}].pos must be [x,y,z]`);
       if ('id' in s) need(typeof s.id === 'string' && s.id.length > 0, `scenario: shades[${i}].id must be a string`);
+      if ('state' in s) need(SHADE_STATES.includes(s.state), `scenario: shades[${i}].state invalid`);
+      if ('state_ticks_left' in s) need(isCount(s.state_ticks_left), `scenario: shades[${i}].state_ticks_left invalid`);
     });
     const ids = doc.shades.filter((s) => s.id).map((s) => s.id);
     need(new Set(ids).size === ids.length, 'scenario: duplicate shade ids');
@@ -112,11 +138,12 @@ export function validateScenario(doc) {
   return doc;
 }
 
-export function run({ seed, scenario, inputs, ticks, snapshotEvery }) {
-  const g = createGame({ seed, scenario });
+export function run({ seed, night = 1, scenario, inputs, ticks, snapshotEvery }) {
+  const g = createGame({ seed, night, scenario });
   const frames = inputs ? inputs.frames : [];
-  const cur = { move: [0, 0], cam_yaw_deg: 0, jump: false, interact: false, pulse: false, dash: false };
+  const cur = { move: [0, 0], cam_yaw_deg: 0, jump: false, interact: false, pulse: false, dash: false, pause: false };
   const lines = [JSON.stringify(snapshot(g))];
+  lines.push(JSON.stringify({ type: 'event', tick: 0, name: 'night_start', data: { night } }));
   let fi = 0;
   for (let k = 0; k < ticks && g.state === 'playing'; k++) {
     while (fi < frames.length && frames[fi].tick <= k) {
@@ -134,7 +161,7 @@ function main() {
   const a = parseArgs(process.argv.slice(2));
   const seed = intArg(a, 'seed', { required: true });
   const night = intArg(a, 'night', { def: 1 });
-  if (night !== 1) fail(1, `night ${night} not available (only 1)`);
+  if (![1, 2, 3].includes(night)) fail(1, `--night must be 1, 2 or 3 (got ${night})`);
   const ticks = intArg(a, 'ticks', { required: true, min: 0 });
   const snapshotEvery = intArg(a, 'snapshot-every', { def: 10, min: 1 });
   if (!a.out) fail(1, '--out is required');
@@ -143,7 +170,7 @@ function main() {
   try {
     if (a.scenario) scenario = validateScenario(readJson(a.scenario));
     if (a.inputs) inputs = validateInputs(readJson(a.inputs));
-    const text = run({ seed, scenario, inputs, ticks, snapshotEvery });
+    const text = run({ seed, night, scenario, inputs, ticks, snapshotEvery });
     mkdirSync(dirname(a.out), { recursive: true });
     writeFileSync(a.out, text);
   } catch (e) {
