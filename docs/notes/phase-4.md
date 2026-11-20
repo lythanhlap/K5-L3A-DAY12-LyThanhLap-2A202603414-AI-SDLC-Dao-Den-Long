@@ -147,3 +147,29 @@ Các lần thử chạy trước khi commit `d4e0cd0` nhưng cùng mã bench. Ch
   Kết quả giống nhau ở cả 3 đêm.
 - Headless, bench và soak không truyền `assist` nên output không đổi: `npm test` 124/124, 31/31 scenario cũ vẫn đạt. Có test mới kiểm cả hai chế độ. Ảnh: [11](../proof/phase-4/screens/11-easy-mode-45-motes.jpg).
 - Điểm đạt được ở chế độ dễ vẫn vào bảng xếp hạng như thường. Contract không có trường đánh dấu chế độ nên mình không thêm.
+
+## Cập nhật: trang trí bản đồ và hiệu ứng (yêu cầu của người dùng, chỉ đổi `src/web/`)
+
+- **`src/web/decor.js`:**
+  - Đêm 1 có cây thông, Đêm 2 "Đảo Cau" có cây cau (lá xòe, chùm quả), Đêm 3 có thông và trụ đá thạch đăng.
+  - Thêm bụi cây, đá, đá bám dọc mép đảo, khoảng 2 000 bụi cỏ và hoa nhỏ (hồng, trắng, tím).
+  - Vị trí cố định theo từng đêm và **tránh xa** đèn, điểm sinh đom đóm, điểm xuất phát, bục nhảy, Bùa Gió, đầu cầu, dốc và mép tầng. Không có va chạm: sim không đọc decor.
+  - Dùng `InstancedMesh` với vật liệu Lambert.
+- **Hiệu ứng:**
+  - Sương trôi thấp quanh đảo.
+  - Cánh hoa hồng rơi quanh Mây; chọn màu hồng để không nhầm với đom đóm vàng.
+  - Khi bật "Giảm chuyển động", sương và cánh hoa đứng yên.
+- **Tắt trong cảnh benchmark** (sáng tạo thêm, theo Ticket-04), nên `bench.json` không bị ảnh hưởng; headless cũng không đổi (`npm test` xanh).
+- **Hiệu năng** (đo thật ở 1280×720, tab phía trước, game thường bị giới hạn 144 Hz):
+
+  | Lần đo | FPS |
+  |---|---|
+  | Bản đầu (vật liệu PBR, sương 46 hạt cỡ 9) | 104–116 |
+  | Đổi sang Lambert | 113–117 |
+  | Tách từng phần: tắt decor | 117 |
+  | Tách từng phần: tắt cỏ và hoa | 118 |
+  | Tách từng phần: **tắt sương và cánh hoa** | **140** |
+
+  Thủ phạm là các hạt sương lớn (fill-rate). Đã giảm còn 24 hạt cỡ 5: Đêm 1 đạt 107–130 (trung bình 121), Đêm 2 khoảng 112, Đêm 3 102–108. Vẫn trên 60 FPS nhưng thấp hơn mức 144 trước đây.
+- **Lỗi tìm thấy khi kiểm:** phụ đề "10 giây cuối!" của đêm trước còn hiện sang đêm sau. Đã sửa: xóa phụ đề và cờ cảnh báo khi tải đêm.
+- Ảnh: [12 Đêm 1](../proof/phase-4/screens/12-decor-night1-pines-rocks-grass.jpg), [13 Đêm 2](../proof/phase-4/screens/13-decor-night2-areca-palms.jpg), [14 Đêm 3](../proof/phase-4/screens/14-decor-night3-pines-stone-lanterns-mist.jpg).
