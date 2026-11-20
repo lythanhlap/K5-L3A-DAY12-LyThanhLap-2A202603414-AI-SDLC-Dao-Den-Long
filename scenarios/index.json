@@ -8,20 +8,21 @@
       { "snapshot": 60, "path": "player.grounded", "equals": true },
       { "snapshot": 120, "path": "player.pos", "equals": [6, 0, 6] },
       { "snapshot": 180, "path": "player.pos", "equals": [10.243, 0, 10.243] },
-      { "snapshot": 60, "path": "time_left_s", "equals": 299 },
+      { "snapshot": 60, "path": "time_left_s", "equals": 239 },
       { "snapshot": 0, "path": "night", "equals": 1 },
       { "event": "night_start", "data": { "night": 1 }, "tick": 0 }
     ]
   },
   {
     "name": "pickup_light", "ac": "AC2 AC3 P2-12", "night": 1, "seed": 1, "ticks": 120,
-    "why": "pick a mote on the way (no score), L1 9/10, interact lights it: +10 per deposited mote, +100 lantern",
+    "why": "pick a mote on the way (no score), L1 9/10, interact lights it: +5 per deposited mote (Ticket-03), +100 first light",
     "expect": [
       { "event": "mote_picked", "data": { "carried": 1 } },
       { "event": "deposit", "data": { "lantern_id": "L1", "amount": 1, "deposited": 10 }, "tick": 91 },
       { "event": "lantern_lit", "data": { "lantern_id": "L1" }, "tick": 91 },
       { "snapshot": 80, "path": "score", "equals": 0 },
-      { "end": { "state": "playing", "score": 110 } }
+      { "event": "lantern_lit", "data": { "lantern_id": "L1", "relight": false }, "tick": 91 },
+      { "end": { "state": "playing", "score": 105 } }
     ]
   },
   {
@@ -59,12 +60,20 @@
     ]
   },
   {
-    "name": "win", "ac": "AC6 P2-12", "night": 1, "seed": 1, "ticks": 100,
-    "why": "4 pre-lit lanterns; last mote lights L5 -> won; 10 + 100 + floor(299.983)*2 + 3*50 = 858",
+    "name": "dawn_win", "ac": "P3-6", "night": 1, "seed": 1, "ticks": 100,
+    "why": "replaces Phase 2 'win' (all_lit removed): 3/5 lit at dawn -> won dawn_survived; 3*(50+floor(99.0)) + 3*50 = 597",
     "expect": [
-      { "event": "lantern_lit", "data": { "lantern_id": "L5" }, "tick": 1 },
-      { "event": "game_over", "data": { "result": "won", "reason": "all_lit" }, "tick": 1 },
-      { "end": { "ticks": 1, "state": "won", "score": 858 } }
+      { "event": "game_over", "data": { "result": "won", "reason": "dawn_survived" }, "tick": 60 },
+      { "snapshot": 60, "path": "lanterns.0.fuel", "equals": 99 },
+      { "end": { "ticks": 60, "state": "won", "score": 597 } }
+    ]
+  },
+  {
+    "name": "dawn_below", "ac": "P3-6", "night": 1, "seed": 1, "ticks": 100,
+    "why": "only 2/5 lit at dawn (< ceil(0.6*5)=3) -> lost dawn",
+    "expect": [
+      { "event": "game_over", "data": { "result": "lost", "reason": "dawn" }, "tick": 60 },
+      { "end": { "ticks": 60, "state": "lost", "score": 0 } }
     ]
   },
   {
@@ -136,7 +145,7 @@
       { "event": "resumed", "tick": 61 },
       { "snapshot": 50, "path": "state", "equals": "paused" },
       { "snapshot": 50, "path": "sim_tick", "equals": 30 },
-      { "snapshot": 50, "path": "time_left_s", "equals": 299.5 },
+      { "snapshot": 50, "path": "time_left_s", "equals": 239.5 },
       { "snapshot": 50, "path": "player.pos", "equals": [0, 0, 3] },
       { "snapshot": 100, "path": "sim_tick", "equals": 70 },
       { "snapshot": 100, "path": "player.pos", "equals": [0, 0, 7] },
@@ -228,6 +237,83 @@
       { "snapshot": 2090, "path": "wind.active", "equals": true },
       { "snapshot": 2100, "path": "wind.active", "equals": false },
       { "dist": { "path": "player.pos", "point": [0, 0, -30], "snapshot": 2200 }, "between": [9.99, 10.01] }
+    ]
+  },
+  {
+    "name": "fuel_out", "ac": "P3-1", "night": 1, "seed": 1, "ticks": 100,
+    "why": "fuel 1.0 decays 1/s (1/60 per tick): out at tick 60 -> lantern_out, deposited 0, ever_lit",
+    "expect": [
+      { "snapshot": 30, "path": "lanterns.0.fuel", "equals": 0.5 },
+      { "event": "lantern_out", "data": { "lantern_id": "L1" }, "tick": 60 },
+      { "snapshot": 60, "path": "lanterns.0.lit", "equals": false },
+      { "snapshot": 60, "path": "lanterns.0.fuel", "equals": 0 },
+      { "snapshot": 60, "path": "lanterns.0.ever_lit", "equals": true },
+      { "snapshot": 60, "path": "lanterns.0.deposited", "equals": 0 }
+    ]
+  },
+  {
+    "name": "refuel", "ac": "P3-2", "night": 1, "seed": 1, "ticks": 20,
+    "why": "fuel 25 -> 24.983 after step-2 decay; used = min(4, ceil(75.02/10)=8) = 4; fuel = 24.983 + 40 = 64.98 -> 65.0; +5 x 4",
+    "expect": [
+      { "event": "refuel", "data": { "lantern_id": "L1", "amount": 4, "fuel": 65 }, "tick": 1 },
+      { "snapshot": 10, "path": "player.carried", "equals": 0 },
+      { "snapshot": 10, "path": "lanterns.0.fuel", "equals": 64.8 },
+      { "end": { "score": 20 } }
+    ]
+  },
+  {
+    "name": "relight", "ac": "P3-3 P3-7", "night": 1, "seed": 1, "ticks": 20,
+    "why": "ever_lit lantern needs only 5; relight +40 (+5 x 5); relit_count 1; capacity 10 + 2x1 = 12",
+    "expect": [
+      { "event": "deposit", "data": { "lantern_id": "L1", "amount": 5, "deposited": 5 }, "tick": 1 },
+      { "event": "lantern_lit", "data": { "lantern_id": "L1", "relight": true }, "tick": 1 },
+      { "snapshot": 10, "path": "lanterns.0.relit_count", "equals": 1 },
+      { "snapshot": 10, "path": "player.carried", "equals": 1 },
+      { "snapshot": 10, "path": "player.capacity", "equals": 12 },
+      { "snapshot": 20, "path": "lanterns.0.fuel", "equals": 99.7 },
+      { "end": { "score": 65 } }
+    ]
+  },
+  {
+    "name": "drain", "ac": "P3-4", "night": 1, "seed": 1, "ticks": 220,
+    "why": "wandering shade 1.5 m from weak L1 (fuel 20, no safe zone) drains 5/s from tick 2: fuel(t) = 20 - t/60 - 5(t-1)/60; fuel_drain every 60 drain ticks; out at tick 201",
+    "expect": [
+      { "snapshot": 10, "path": "shades.0.state", "equals": "drain" },
+      { "snapshot": 60, "path": "lanterns.0.fuel", "equals": 14.1 },
+      { "event": "fuel_drain", "data": { "lantern_id": "L1", "shade_id": "S1", "fuel": 14 }, "tick": 61 },
+      { "event": "lantern_out", "data": { "lantern_id": "L1" }, "tick": 201 },
+      { "snapshot": 210, "path": "shades.0.state", "equals": "wander" },
+      { "count": "player_hit", "equals": 0 }
+    ]
+  },
+  {
+    "name": "drain_pulse", "ac": "P3-5", "night": 1, "seed": 1, "ticks": 40,
+    "why": "pulse hits a draining shade (3D 4.50 m): stunned, +15 total",
+    "expect": [
+      { "snapshot": 0, "path": "shades.0.state", "equals": "drain" },
+      { "event": "pulse", "data": { "stunned_ids": ["S1"] }, "tick": 1 },
+      { "snapshot": 10, "path": "shades.0.state", "equals": "stunned" },
+      { "end": { "score": 15 } }
+    ]
+  },
+  {
+    "name": "drain_refuel", "ac": "P3-5", "night": 1, "seed": 1, "ticks": 120,
+    "why": "refuel weak L1 back to >= 30 (20 -> 19.9 after decay+drain, +20 = 39.9): drain stops, shade pushed to the 6 m edge in <= 30 ticks, never hits",
+    "expect": [
+      { "event": "refuel", "data": { "lantern_id": "L1", "amount": 2, "fuel": 39.9 }, "tick": 1 },
+      { "snapshot": 10, "path": "shades.0.state", "equals": "wander" },
+      { "dist": { "path": "shades.0.pos", "point": [0, 0, 10], "snapshot": 30 }, "between": [6, 6.01] },
+      { "count": "player_hit", "equals": 0 },
+      { "count": "fuel_drain", "equals": 0 }
+    ]
+  },
+  {
+    "name": "capacity", "ac": "P3-7", "night": 1, "seed": 1, "ticks": 10,
+    "why": "successful_lights 3 -> capacity 10 + 2x3 = 16: picks 16 of 20 motes",
+    "expect": [
+      { "snapshot": 0, "path": "player.capacity", "equals": 16 },
+      { "snapshot": 10, "path": "player.carried", "equals": 16 },
+      { "snapshot": 10, "path": "motes_active", "equals": 4 }
     ]
   },
   {
