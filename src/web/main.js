@@ -6,6 +6,7 @@ import { addEntry, isValidName, isoWithOffset, sortEntries } from '../leaderboar
 import { TICK_RATE, TUNING, RULES } from '../sim/tuning.js';
 import { makePlayer, animatePlayer } from './character.js';
 import { buildWorld } from './world.js';
+import { buildDecor, createAmbient } from './decor.js';
 import { PAL, ambientFor } from './palette.js';
 import { initAudio, setVolume, sfx } from './audio.js';
 import { createBackdrop } from './backdrop.js';
@@ -141,7 +142,9 @@ const moon = new THREE.DirectionalLight('#9aa8ff', 0.5);
 moon.position.set(-30, 50, -20);
 scene.add(moon);
 
-const backdrop = new URLSearchParams(location.search).has('bench') ? { update() {} } : createBackdrop(scene);
+const IS_BENCH = new URLSearchParams(location.search).has('bench'); // creative extras are off in the bench scene
+const backdrop = IS_BENCH ? { update() {} } : createBackdrop(scene);
+const ambient = IS_BENCH ? { update() {} } : createAmbient(scene);
 const playerMesh = makePlayer();
 window.__render = { playerMesh, camera, get camYaw() { return camYaw; } }; // debug/verification hook (read-only use)
 scene.add(playerMesh);
@@ -399,6 +402,7 @@ function loadNight(n, prebuilt = null) {
   window.__game = game;
   if (world) scene.remove(world);
   world = buildWorld(n);
+  if (!IS_BENCH) world.add(buildDecor(n)); // trees, rocks, grass, flowers (visual only)
   scene.add(world);
   for (const m of [moteMeshes, shadeMeshes, lanternMeshes, drifterMeshes, charmMeshes]) clearMap(m);
   for (const l of game.lanterns) {
@@ -416,6 +420,12 @@ function loadNight(n, prebuilt = null) {
   lastSecond = null;
   prevPos.clear();
   shownFacing = 0;
+  // captions / one-shot cues belong to the night that raised them
+  captions.length = 0;
+  shadeCue = null;
+  warnedLow.clear();
+  windCaptioned = false;
+  tenCaptioned = false;
 }
 
 function startIntro(n) {
@@ -994,7 +1004,11 @@ function frame(now) {
     acc = 0;
     alpha = 1;
   }
-  if (game) backdrop.update(now / 1000, lerpPos('player', game.player.pos), night);
+  if (game) {
+    const pp = lerpPos('player', game.player.pos);
+    backdrop.update(now / 1000, pp, night);
+    ambient.update(now / 1000, pp, night, settings.reduceMotion);
+  }
   if (pulseFx > 0) pulseFx = Math.max(0, pulseFx - dt / 0.35);
   if (game) {
     syncEntities(now / 1000, now / 1000 - lastT);
