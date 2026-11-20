@@ -30,6 +30,7 @@ node src/headless.js --seed 1 --night 1 --ticks 600 --out out/run.jsonl \
 | `E` | Nạp ánh sáng vào đèn gần nhất (≤ 2 m) |
 | `F` / click chuột trái | Tỏa Sáng: tốn 3 đom đóm, làm choáng và đẩy Bóng Mực trong 5 m |
 | Kéo chuột / `←` `→` | Xoay camera (độ nhạy chỉnh trong Cài đặt) |
+| Cài đặt | Âm lượng, độ nhạy chuột, **gamma** 0.6–2.2 (mặc định 1.0 = đúng bảng màu chuẩn; tăng lên nếu màn hình tối). Lưu giữa các lần mở game |
 | `Esc` / `P` | Tạm dừng (Tiếp tục / Chơi lại Đêm / Cài đặt / Về menu) |
 | `Enter` | Chọn nút đầu tiên trên màn hình menu |
 

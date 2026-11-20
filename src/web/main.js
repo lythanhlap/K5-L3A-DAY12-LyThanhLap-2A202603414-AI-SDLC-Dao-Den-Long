@@ -13,7 +13,7 @@ const params = new URLSearchParams(location.search);
 
 // ---------------------------------------------------------------- settings (persisted)
 const SETTINGS_KEY = 'ddl-settings';
-const settings = { volume: 0.6, sens: 0.5 };
+const settings = { volume: 0.6, sens: 0.5, gamma: 1 };
 try {
   Object.assign(settings, JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}'));
 } catch {}
@@ -33,12 +33,26 @@ $('set-sens').addEventListener('input', (e) => {
   settings.sens = Number(e.target.value);
   saveSettings();
 });
+// Gamma: output = input^(1/gamma). 1.0 = standard palette; > 1 brightens dark night scenes.
+function applyGamma() {
+  const g = settings.gamma;
+  for (const f of document.querySelectorAll('#gamma feFuncR, #gamma feFuncG, #gamma feFuncB')) f.setAttribute('exponent', String(1 / g));
+  renderer.domElement.style.filter = Math.abs(g - 1) < 1e-3 ? 'none' : 'url(#gamma)';
+  $('gamma-val').textContent = g.toFixed(2);
+}
+$('set-gamma').value = settings.gamma;
+$('set-gamma').addEventListener('input', (e) => {
+  settings.gamma = Number(e.target.value);
+  applyGamma();
+  saveSettings();
+});
 
 // ---------------------------------------------------------------- renderer / scene
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
 renderer.setSize(innerWidth, innerHeight);
 document.body.prepend(renderer.domElement);
+applyGamma();
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(PAL.sky);
 scene.fog = new THREE.FogExp2(PAL.fog, 0.012);

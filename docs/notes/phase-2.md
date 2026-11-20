@@ -92,3 +92,4 @@ Agent nhận toàn văn yêu cầu Ticket-02, tự chạy `npm test` và `npm ru
 | 6 | Rủi ro giả định: xuất phát Đêm 3, `invuln` boolean, chênh cao khi chạm, bỏ điểm sinh trong vùng an toàn, Gió Lạc sinh ở điểm sinh Bóng Mực | Giữ, đã ghi trong giả định. Nên hỏi trợ giảng nếu còn thời gian |
 
 Sau khi sửa: `npm test` 90/90; proof sinh lại.
+- Thêm thanh **Gamma** trong Cài đặt (người dùng yêu cầu). Dùng bộ lọc SVG `feComponentTransfer`, chỉ áp lên canvas 3D, không ảnh hưởng HUD. Mặc định 1.0, khi đó tắt hẳn bộ lọc, nên bảng màu chuẩn giữ nguyên. Đã kiểm: 1.8 vẫn 144 FPS @1280×720, giá trị được lưu qua lần tải lại trang ([08](../proof/phase-2/screens/08-gamma-1.0.jpg) / [09](../proof/phase-2/screens/09-gamma-1.8.jpg)).
