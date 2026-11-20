@@ -165,3 +165,104 @@ test('snapshot has every v1.1 field', () => {
   assert.deepEqual(Object.keys(s.motes[0]), ['id', 'pos', 'kind', 'ttl_s']);
   assert.deepEqual(Object.keys(s.charms[0]), ['id', 'pos', 'available', 'respawn_s']);
 });
+
+// ---- added after independent review (contract-reviewer, Phase 2) ----
+
+test('recoil: shade backs off exactly 2.000 m over 60 ticks, then resumes', () => {
+  const g = createGame({ scenario: empty({ shades: [{ id: 'S1', pos: [0.5, 1, 0] }] }) });
+  run(g, 1); // chases 4/60 to 0.4333, hits on tick 1
+  assert.equal(g.shades[0].state, 'recoil');
+  run(g, 59);
+  assert.equal(snapshot(g).shades[0].pos[0], 2.4); // 59 recoil moves so far
+  assert.equal(g.shades[0].state, 'recoil');
+  run(g, 1);
+  assert.equal(snapshot(g).shades[0].pos[0], 2.433); // 60th move: 0.4333 + 2.000
+  assert.equal(g.shades[0].state, 'chase');
+});
+
+test('wind gust pushes for the full 5 s: 2 m/s x 300 ticks = 10 m', () => {
+  const g = createGame({ night: 3, scenario: empty({ wind_enabled: true }) });
+  run(g, 2400);
+  const p = g.player.pos;
+  assert.ok(Math.abs(Math.hypot(p[0], p[2] + 30) - 10) < 1e-6, String(p));
+  assert.equal(g.wind.active, false);
+});
+
+test('pulse on a shade being evicted from a newly lit zone keeps it harmless (evict kept)', () => {
+  const g = createGame({ scenario: empty({ player: { pos: [0, 0, 7], carried: 4 }, shades: [{ id: 'S1', pos: [1, 1, 8] }], lanterns: [{ id: 'L1', pos: [0, 0, 8], deposited: 9 }] }) });
+  const ev = run(g, 1, { ...idle, interact: true, pulse: true });
+  assert.deepEqual(ev.map((e) => e.name), ['deposit', 'lantern_lit', 'pulse']);
+  assert.ok(g.shades[0].evict > 0, 'still being evicted');
+  const later = run(g, 300);
+  assert.equal(later.filter((e) => e.name === 'player_hit').length, 0);
+  const s = g.shades[0].pos;
+  assert.ok(Math.hypot(s[0], s[2] - 8) >= 6, String(s));
+});
+
+test('shade schedule: 2 at tick 300, then every 480/420/360 ticks, max 6/8/10', () => {
+  const expected = { 1: [300, 300, 780, 1260, 1740, 2220], 2: [300, 300, 720, 1140, 1560, 1980, 2400, 2820], 3: [300, 300, 660, 1020, 1380, 1740, 2100, 2460, 2820, 3180] };
+  for (const night of [1, 2, 3]) {
+    const g = createGame({ seed: 7, night, scenario: { random_motes: false, random_drifters: false, wind_enabled: false, player: { flames: 999, invuln_ticks: 99999 } } });
+    const ticks = run(g, 4000).filter((e) => e.name === 'shade_spawned').map((e) => e.tick);
+    assert.deepEqual(ticks, expected[night], `night ${night}`);
+  }
+});
+
+test('shades never spawn within 15 m of Mây', () => {
+  const g = createGame({ seed: 3, scenario: { random_motes: false, player: { pos: [37, 0, 0], flames: 99, invuln_ticks: 99999 } } });
+  for (let k = 0; k < 2300; k++) {
+    for (const e of step(g, idle)) {
+      if (e.name !== 'shade_spawned') continue;
+      const s = g.shades.find((x) => x.id === e.data.id);
+      assert.ok(Math.hypot(s.pos[0] - 37, s.pos[2]) >= 15, `${e.data.id} at ${s.pos}`);
+    }
+  }
+});
+
+test('drifter: idle below 5 motes, chases at >= 5 within 15 m, back to idle when that stops', () => {
+  const g = createGame({ night: 2, scenario: empty({ player: { carried: 4 }, drifters: [{ id: 'D1', pos: [10, 1.5, 0] }] }) });
+  run(g, 5);
+  assert.equal(g.drifters[0].state, 'idle');
+  g.player.carried = 5;
+  run(g, 1);
+  assert.equal(g.drifters[0].state, 'chase');
+  g.player.carried = 4;
+  run(g, 1);
+  assert.equal(g.drifters[0].state, 'idle');
+});
+
+test('charm: 600 ticks, unavailable for 2700 ticks, then can be picked again', () => {
+  const g = createGame({ night: 2, scenario: empty({ player: { pos: [35, 0, 0] } }) });
+  const ev = run(g, 2710).filter((e) => e.name === 'charm_picked');
+  assert.deepEqual(ev.map((e) => e.tick), [1, 2701]);
+  assert.deepEqual(ev[0].data, { charm_id: 'C1', charm_ticks: 600 });
+});
+
+test('fall ignores invulnerability, happens once, respawn after 60 ticks with 90 ticks invuln', () => {
+  const g = createGame({ scenario: empty({ player: { pos: [39.95, 0, 0], carried: 3, invuln_ticks: 1000 } }) });
+  const ev = [];
+  for (let k = 0; k < 300; k++) ev.push(...step(g, { ...idle, move: k < 5 ? [1, 0] : [0, 0] }));
+  const falls = ev.filter((e) => e.name === 'player_hit');
+  assert.equal(falls.length, 1);
+  assert.deepEqual(falls[0].data, { by: 'fall', flames: 2, dropped: 0, lost: 3 });
+  assert.deepEqual(snapshot(g).player.pos, [0, 0, 0]);
+});
+
+test('dropped motes land on a 1.5-2.5 m ring around Mây', () => {
+  const g = createGame({ seed: 5, scenario: empty({ player: { carried: 10 }, shades: [{ id: 'S1', pos: [0.5, 1, 0] }] }) });
+  const ev = run(g, 1);
+  assert.equal(ev[0].data.dropped, 5);
+  for (const m of g.motes) {
+    const d = Math.hypot(m.pos[0], m.pos[2]);
+    assert.ok(m.kind === 'dropped' && d >= 1.5 - 1e-3 && d <= 2.5 + 1e-3, `${m.id} at ${d}`);
+  }
+});
+
+test('pause freezes dropped-mote TTL and time', () => {
+  const g = createGame({ scenario: empty({ motes: [{ pos: [5, 0, 5], kind: 'dropped', ttl_ticks: 50 }] }) });
+  step(g, { ...idle, pause: true });
+  run(g, 200); // still paused (no new edge)
+  assert.equal(g.motes.length, 1);
+  assert.equal(g.simTick, 0);
+  assert.equal(g.tick, 201);
+});

@@ -52,6 +52,8 @@
       { "snapshot": 10, "path": "shades.0.state", "equals": "recoil" },
       { "snapshot": 10, "path": "player.invuln", "equals": true },
       { "snapshot": 60, "path": "shades.0.pos", "equals": [2.4, 1, 0] },
+      { "snapshot": 60, "path": "shades.0.state", "equals": "recoil" },
+      { "snapshot": 70, "path": "shades.0.pos", "equals": [1.833, 1, 0] },
       { "event": "player_hit", "data": { "by": "shade", "flames": 1, "dropped": 1 }, "tick": 91 },
       { "count": "player_hit", "equals": 2 }
     ]
@@ -217,12 +219,15 @@
     ]
   },
   {
-    "name": "wind", "ac": "P2-11", "night": 3, "seed": 1, "ticks": 1900,
-    "why": "first gust at sim_tick 1800 lasts 5 s and pushes Mây 2 m/s: 100 ticks -> 3.33 m",
+    "name": "wind", "ac": "P2-11", "night": 3, "seed": 1, "ticks": 2200,
+    "why": "first gust at sim_tick 1800 lasts 5 s and pushes Mây 2 m/s: 100 ticks -> 3.33 m, whole gust -> 10 m",
     "expect": [
       { "snapshot": 1790, "path": "wind.active", "equals": false },
       { "snapshot": 1900, "path": "wind.active", "equals": true },
-      { "dist": { "path": "player.pos", "point": [0, 0, -30], "snapshot": 1900 }, "between": [3.3, 3.4] }
+      { "dist": { "path": "player.pos", "point": [0, 0, -30], "snapshot": 1900 }, "between": [3.3, 3.4] },
+      { "snapshot": 2090, "path": "wind.active", "equals": true },
+      { "snapshot": 2100, "path": "wind.active", "equals": false },
+      { "dist": { "path": "player.pos", "point": [0, 0, -30], "snapshot": 2200 }, "between": [9.99, 10.01] }
     ]
   },
   {

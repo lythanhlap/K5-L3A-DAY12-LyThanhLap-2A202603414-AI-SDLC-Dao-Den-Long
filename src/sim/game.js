@@ -297,7 +297,8 @@ export function step(g, input) {
   if (p.pulseCd > 0) p.pulseCd--;
   if (p.charm > 0) p.charm--;
   for (const s of g.shades) {
-    if ((s.state === 'spawning' || s.state === 'stunned' || s.state === 'recoil') && s.t > 0) {
+    // recoil counts down in step 8 after moving, so it moves exactly recoilTicks times (2.000 m)
+    if ((s.state === 'spawning' || s.state === 'stunned') && s.t > 0) {
       s.t--;
       if (s.t === 0) resolveShadeState(g, s);
     }
@@ -313,7 +314,6 @@ export function step(g, input) {
       d.stolen = 0;
     }
   }
-  if (g.wind.active && --g.wind.t <= 0) g.wind.active = false;
   let waiting = false;
   if (p.respawn > 0) {
     waiting = true;
@@ -438,6 +438,9 @@ export function step(g, input) {
     }
   }
 
+  // the gust counts down after pushing, so it pushes for exactly windTicks steps (2 m/s × 5 s = 10 m)
+  if (g.wind.active && --g.wind.t <= 0) g.wind.active = false;
+
   // 4. pickup motes + charms
   if (!waiting) {
     for (let i = 0; i < g.motes.length && p.carried < T.carry_capacity; ) {
@@ -523,8 +526,7 @@ export function step(g, input) {
       s.state = 'stunned';
       s.t = ticksOf(T.pulse_stun_s);
       s.push = [ux, uz];
-      s.pushLeft = R.pulsePushTicks;
-      s.evict = 0;
+      s.pushLeft = R.pulsePushTicks; // keep s.evict: a shade being evicted stays harmless until it is out
       g.score += T.score.per_stun;
       ids.push(s.id);
     }
@@ -565,6 +567,7 @@ export function step(g, input) {
       if (!s.recoilDir) s.recoilDir = dp > 1e-9 ? [(s.pos[0] - p.pos[0]) / dp, (s.pos[2] - p.pos[2]) / dp] : [1, 0];
       const k = R.recoilDist / R.recoilTicks;
       moveShade(g, s, s.recoilDir[0] * k, s.recoilDir[1] * k);
+      if (--s.t <= 0) resolveShadeState(g, s);
       continue;
     }
     if (s.state === 'wander' && dp <= R.shadeDetect) s.state = 'chase';
