@@ -132,3 +132,18 @@ Các lần thử chạy trước khi commit `d4e0cd0` nhưng cùng mã bench. Ch
 - Nón lá gồm thân nón màu rơm, viền vành, 8 gân nón và quai đỏ. Đèn lồng nhỏ treo ở vành nón (trước đây treo ở đai), vẫn sáng dần theo số đom đóm mang theo. Gỡ được lệch PRD-0 ghi ở giả định 16 Phase 1.
 - Lỗi tìm thấy khi kiểm bằng ảnh: gân nón đặt sai dấu góc nghiêng nên chĩa ra ngoài; đã sửa. Trang `character.html` bị trắng khi tải lúc khung xem chưa có kích thước; đã thêm xử lý đổi cỡ.
 - Chỉ đổi `src/web/character.js` (hiển thị), nên `npm test` không đổi.
+
+## Cập nhật: Chế độ dễ, nhiều đom đóm hơn (yêu cầu của người dùng)
+
+- Số đom đóm 20 / trần 30 / +1 mỗi 240 tick là **số chuẩn bắt buộc** của Ticket-02 và test ẩn chấm theo đó. Vì vậy không đổi luật mặc định. Thay vào đó thêm tùy chọn **"Chế độ dễ"** trong Cài đặt: **mặc định tắt**, được lưu, áp dụng từ Đêm kế tiếp hoặc khi Chơi lại.
+- Khi bật: thêm 25 đom đóm rải quanh các điểm sinh chuẩn (cách 1,5–4 m, trên mặt đất). Cứ 120 tick sinh thêm 2 con, tối đa 60.
+- Đo thật (seed 3, không có Bóng Mực, đứng yên):
+
+  | Chế độ | Lúc bắt đầu | Sau 20 s |
+  |---|---|---|
+  | Chuẩn | 20 | 24 (giới hạn bởi 24 điểm sinh) |
+  | **Dễ** | **45** | **60** |
+
+  Kết quả giống nhau ở cả 3 đêm.
+- Headless, bench và soak không truyền `assist` nên output không đổi: `npm test` 124/124, 31/31 scenario cũ vẫn đạt. Có test mới kiểm cả hai chế độ. Ảnh: [11](../proof/phase-4/screens/11-easy-mode-45-motes.jpg).
+- Điểm đạt được ở chế độ dễ vẫn vào bảng xếp hạng như thường. Contract không có trường đánh dấu chế độ nên mình không thêm.

@@ -43,6 +43,7 @@ Bản phát hành `v1.0.0` có sẵn file zip `dist/`, xem phần [Release](#rel
 - Giảm chuyển động: tắt rung camera và chớp màn hình.
 - Chữ lớn ×1.25 (chữ mặc định ≥ 18 px).
 - Đổi phím, có báo trùng phím và nút "Khôi phục mặc định".
+- **Chế độ dễ** (mặc định tắt): 45 đom đóm lúc đầu, tối đa 60, sinh nhanh gấp đôi. Luật chuẩn và headless không đổi.
 
 ## Luật và điểm
 
