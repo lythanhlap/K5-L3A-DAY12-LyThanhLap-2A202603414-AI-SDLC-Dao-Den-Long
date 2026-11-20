@@ -77,3 +77,18 @@ Nguồn: tab Phase 2 trên lab board (đọc qua trình duyệt ngày 2026-11-20
   - `safe_evict`: bóng ra tới mép ở tick 30 rồi đuổi tiếp một bước ngay trong tick đó.
 - **Ảnh dựng nhanh:** ảnh Đêm 2, Đêm 3 và Bình Minh được dựng bằng cách đánh dấu đèn đã sáng qua `window.__game` để chuyển đêm nhanh. Chưa ai chơi trọn 3 đêm bằng tay.
 - **Rủi ro với test ẩn:** các giả định 2 (xuất phát Đêm 3), 3–4 (spawning/wander), 6 (chênh cao), 8 (tick của `night_start`), 14 (`invuln` boolean).
+
+## Review độc lập trước khi tag (subagent `contract-reviewer`, không phải bên viết code)
+
+Agent nhận toàn văn yêu cầu Ticket-02, tự chạy `npm test` và `npm run proof`, và không được sửa code. Kết quả: không vi phạm contract nào cứng. Các phát hiện (đã kiểm lại trên code trước khi sửa):
+
+| # | Phát hiện | Xử lý |
+|---|---|---|
+| 1 | **Lỗi lệch 1:** recoil chỉ di chuyển 59 bước (1,967 m), vì bộ đếm giảm ở bước 2 trước khi lùi | Sửa: recoil đếm ngược ở bước 8 sau khi di chuyển, nên lùi đúng 60 × 2/60 = 2,000 m. Thêm unit test + kỳ vọng `hit_drop` tick 70 = 1.833 (tính tay) |
+| 2 | **Gió** chỉ đẩy 299 tick (9,967 m) | Sửa: cơn gió đếm ngược sau khi đẩy (gió không nằm trong danh sách bộ đếm của bước 2). Thêm test 10 m và kiểm `wind.active` ở tick 2090/2100 |
+| 3 | Tỏa Sáng đặt `evict = 0` cho bóng đang bị đẩy ra khỏi vùng đèn mới thắp, nên sau khi hết choáng bóng có thể gây sát thương trong vùng an toàn | Sửa: giữ `evict`. Thêm test |
+| 4 | Thiếu unit test độc lập cho lịch sinh Bóng Mực, Gió Lạc, bùa, rơi đảo, vành đom đóm rơi, tạm dừng | Thêm 7 test (tính tay). Ba test của mục 1–3 **đỏ trên code cũ, xanh sau khi sửa** (đã kiểm bằng `git stash`) |
+| 5 | Nhiều kỳ vọng vị trí (6.667, 7.333, 2.4) trông như chép từ output | Đây là giá trị tính tay: 4 + 10 × 4/15 = 6.667; 8 − 10 × 4/60 = 7.333; 0.4333 + 59/30 = 2.4. Giữ lại |
+| 6 | Rủi ro giả định: xuất phát Đêm 3, `invuln` boolean, chênh cao khi chạm, bỏ điểm sinh trong vùng an toàn, Gió Lạc sinh ở điểm sinh Bóng Mực | Giữ, đã ghi trong giả định. Nên hỏi trợ giảng nếu còn thời gian |
+
+Sau khi sửa: `npm test` 90/90; proof sinh lại.

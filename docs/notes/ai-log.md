@@ -38,3 +38,4 @@ Công cụ: Claude Code (desktop app, model Claude Opus 5.5). Harness: xem READM
 | Harness | AGENTS.md: v1.1, quy ước biên, bẫy bộ đếm. Skill: kiểu kiểm `between`/`dist` và các bẫy đã gặp | |
 
 **Token / chi phí Phase 2:** _(điền số thật từ trang usage hoặc `/cost`)_. Phần tốn nhiều nhất là đọc ticket bằng ảnh chụp, khoảng 20 ảnh. Cách tiết kiệm: ghi ticket thành `phase-2.md` một lần rồi chỉ đọc file đó; kiểm chứng bằng `npm test` thay vì để agent tự đọc output.
+- **Review độc lập (Phase 2)**: chạy subagent `contract-reviewer` (khoảng 56k token). Nó tìm ra 3 lỗi thật (recoil lệch 1, gió 299 tick, Tỏa Sáng xóa trạng thái đẩy-khỏi-vùng) mà 80 test cũ không bắt được, vì kỳ vọng của mình được tính theo đúng mô hình sai đó. Bài học: người viết code tự tính kỳ vọng dễ lặp lại chính lỗi của mình. Review độc lập nên chạy trước mỗi tag.
