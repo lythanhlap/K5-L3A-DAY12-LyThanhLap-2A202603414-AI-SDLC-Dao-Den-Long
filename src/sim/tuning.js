@@ -1,4 +1,4 @@
-// Standard numbers from Ticket-02 (Contract v1.1). game.contract.json must mirror TUNING
+// Standard numbers from Ticket-02/03 (Contract v1.2). game.contract.json must mirror TUNING
 // (enforced by tests/sim.test.js). Everything else from the ticket lives in RULES.
 export const TICK_RATE = 60;
 
@@ -11,7 +11,7 @@ export const TUNING = Object.freeze({
   interact_radius: 2,
   pulse_cost: 3,
   pulse_radius: 5,
-  night1_duration_s: 300,
+  night1_duration_s: 240,
   flames: 3,
   invuln_s: 1.5,
   hit_drop_ratio: 0.5,
@@ -23,17 +23,25 @@ export const TUNING = Object.freeze({
   shade_hit_radius: 1,
   fall_enabled: true,
   score: Object.freeze({
-    per_mote: 10,
+    per_mote: 5,
     per_lantern: 100,
     per_stun: 5,
-    per_second_left: 2,
+    per_second_left: 0,
     per_flame_left: 50,
   }),
   dash_speed: 14,
   dash_duration_s: 0.2,
   dash_cooldown_s: 1.5,
-  night2_duration_s: 330,
-  night3_duration_s: 360,
+  night2_duration_s: 270,
+  night3_duration_s: 300,
+  fuel_max: 100,
+  fuel_decay_per_s: 1.0,
+  fuel_per_mote: 10,
+  relight_cost: 5,
+  win_ratio: 0.6,
+  drain_per_s: 5,
+  low_fuel_threshold: 30,
+  capacity_max: 20,
 });
 
 // Other standard rules from Ticket-02 (not contract keys).
@@ -80,4 +88,12 @@ export const RULES = Object.freeze({
   windWarn: 120,
   windSpeed: 2,
   stepUp: 0.3,
+  // Phase 3 (Ticket-03)
+  capacityPerLight: 2,
+  relightScore: 40,
+  drainStunScore: 15, // total for a pulse hit on a draining shade
+  dawnPerLantern: 50,
+  drainRange: 2,
+  drainChaseRange: 6,
+  fuelDrainEventEvery: 60,
 });

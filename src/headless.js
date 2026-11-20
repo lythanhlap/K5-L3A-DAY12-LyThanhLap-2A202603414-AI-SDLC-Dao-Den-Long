@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Headless runner per Test Contract v1.1.
+// Headless runner per Test Contract v1.2.
 // Usage: node src/headless.js --seed <int> --night <1|2|3> [--scenario f] [--inputs f] --ticks <int> --out <f.jsonl> [--snapshot-every 10]
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -7,7 +7,7 @@ import { pathToFileURL } from 'node:url';
 import { createGame, step, snapshot, ScenarioError } from './sim/game.js';
 
 class FormatError extends Error {}
-const SHADE_STATES = ['spawning', 'wander', 'chase', 'recoil', 'stunned'];
+const SHADE_STATES = ['spawning', 'wander', 'chase', 'recoil', 'stunned', 'drain'];
 const DRIFTER_STATES = ['idle', 'chase', 'flee', 'removed'];
 
 function fail(code, msg) {
@@ -86,7 +86,7 @@ export function validateScenario(doc) {
     if ('pos' in p) need(isVec(p.pos, 3), 'scenario: player.pos must be [x,y,z]');
     if ('carried' in p) need(isCount(p.carried), 'scenario: player.carried must be a non-negative integer');
     if ('flames' in p) need(isCount(p.flames), 'scenario: player.flames must be a non-negative integer');
-    for (const k of ['invuln_ticks', 'dash_cd_ticks', 'pulse_cd_ticks', 'charm_ticks']) {
+    for (const k of ['invuln_ticks', 'dash_cd_ticks', 'pulse_cd_ticks', 'charm_ticks', 'successful_lights']) {
       if (k in p) need(isCount(p[k]), `scenario: player.${k} must be a non-negative integer`);
     }
   }
@@ -121,6 +121,7 @@ export function validateScenario(doc) {
       if ('id' in s) need(typeof s.id === 'string' && s.id.length > 0, `scenario: shades[${i}].id must be a string`);
       if ('state' in s) need(SHADE_STATES.includes(s.state), `scenario: shades[${i}].state invalid`);
       if ('state_ticks_left' in s) need(isCount(s.state_ticks_left), `scenario: shades[${i}].state_ticks_left invalid`);
+      if ('target_lantern_id' in s) need(typeof s.target_lantern_id === 'string', `scenario: shades[${i}].target_lantern_id must be a string`);
     });
     const ids = doc.shades.filter((s) => s.id).map((s) => s.id);
     need(new Set(ids).size === ids.length, 'scenario: duplicate shade ids');
@@ -132,6 +133,8 @@ export function validateScenario(doc) {
       if ('pos' in l) need(isVec(l.pos, 3), `scenario: lanterns[${i}].pos must be [x,y,z]`);
       if ('deposited' in l) need(isCount(l.deposited), `scenario: lanterns[${i}].deposited must be a non-negative integer`);
       if ('lit' in l) need(isBool(l.lit), `scenario: lanterns[${i}].lit must be boolean`);
+      if ('ever_lit' in l) need(isBool(l.ever_lit), `scenario: lanterns[${i}].ever_lit must be boolean`);
+      if ('fuel' in l) need(isNum(l.fuel) && l.fuel >= 0, `scenario: lanterns[${i}].fuel must be a number >= 0`);
     });
   }
   if ('time_left_s' in doc) need(isNum(doc.time_left_s) && doc.time_left_s > 0, 'scenario: time_left_s must be > 0');
