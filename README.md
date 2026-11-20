@@ -3,7 +3,7 @@
 > **Video demo:** _(sẽ thêm ở Phase 4)_ · Đề bài và tài liệu lab: [LAB.md](LAB.md)
 > Ly Thanh Lap · 2A202603414 · Day 12 AI SDLC
 
-Game 3D góc nhìn thứ ba (Three.js). Mây, người giữ đèn nhỏ tuổi (một chiến binh gấu trúc mang đèn lồng nhỏ), gom đom đóm để thắp lại 5 Đèn Lồng Lớn của Đảo Bến và né Bóng Mực trong sương đen. Logic game là một mô phỏng tất định (`src/sim/`), dùng chung cho bản chơi trên trình duyệt và chế độ headless theo **Test Contract v1.0**.
+Game 3D góc nhìn thứ ba (Three.js). Mây, người giữ đèn nhỏ tuổi (một chiến binh gấu trúc mang đèn lồng nhỏ), đi qua **3 đêm**: Đảo Bến, Đảo Cau, Đảo Chuông. Mây gom đom đóm để thắp lại các Đèn Lồng Lớn, né Bóng Mực và Gió Lạc. Logic game là một mô phỏng tất định (`src/sim/`), dùng chung cho bản chơi trên trình duyệt và chế độ headless theo **Test Contract v1.1**.
 
 ## Cài đặt và chạy (macOS / Linux / Windows, cần Node ≥ 22)
 
@@ -26,27 +26,34 @@ node src/headless.js --seed 1 --night 1 --ticks 600 --out out/run.jsonl \
 |---|---|
 | `W A S D` / mũi tên ↑↓ | Di chuyển (theo hướng camera) |
 | `Space` | Nhảy |
-| `E` | Nạp ánh sáng vào đèn gần nhất (≤ 2.5 m) |
-| `F` hoặc click chuột trái | Tỏa sáng: tốn 1 đom đóm, làm choáng và đẩy Bóng Mực trong 6 m |
-| Kéo chuột / `←` `→` | Xoay camera |
-| `R` / `Enter` | Chơi lại sau khi thắng/thua |
+| `Shift` | Lướt (14 m/s trong 0,2 s, hồi 1,5 s) |
+| `E` | Nạp ánh sáng vào đèn gần nhất (≤ 2 m) |
+| `F` / click chuột trái | Tỏa Sáng: tốn 3 đom đóm, làm choáng và đẩy Bóng Mực trong 5 m |
+| Kéo chuột / `←` `→` | Xoay camera (độ nhạy chỉnh trong Cài đặt) |
+| `Esc` / `P` | Tạm dừng (Tiếp tục / Chơi lại Đêm / Cài đặt / Về menu) |
+| `Enter` | Chọn nút đầu tiên trên màn hình menu |
 
-## Luật và cách tính điểm
+## Luật và cách tính điểm (số chuẩn Ticket-02)
 
-- Đi vào đom đóm (≤ 1 m) thì tự nhặt, mang tối đa **5**. Mỗi đèn cần **5** đom đóm để thắp.
-- Bóng Mực đuổi theo Mây (3.5 m/s, Mây chạy 6 m/s). Bị chạm (≤ 1 m) thì mất 1 lửa, rơi mất một nửa số đom đóm đang mang, rồi bất tử 1.5 s. Mây có **3** lửa.
-- Đèn đã thắp tạo vùng an toàn bán kính **5 m**: Bóng Mực không vào được.
-- **Thắng:** thắp đủ 5 đèn. **Thua:** hết lửa (`no_flames`) hoặc hết 300 s, tức bình minh (`dawn`).
-- **Điểm:** +10 mỗi đom đóm nhặt, +100 mỗi đèn thắp, +20 mỗi Bóng Mực bị choáng. Khi thắng cộng thêm `floor(giây còn lại) × 1 + lửa còn lại × 50`.
+- Mang tối đa **10** đom đóm. Mỗi đèn cần **10**, nạp nhiều lần được.
+- Đèn đã sáng tạo vùng an toàn 6 m mà Bóng Mực không vào được.
+- Bóng Mực phát hiện Mây trong 12 m và bỏ đuổi khi xa hơn 18 m.
+- Bị chạm: −1 Ngọn Lửa, rơi một nửa số đom đóm ra quanh Mây (nhặt lại được trong 8 s), bất tử 1,5 s.
+- Rơi khỏi đảo: −1 lửa, mất hết đom đóm, hồi sinh ở điểm xuất phát.
+- **Gió Lạc** (Đêm 2–3) cướp tối đa 3 đom đóm khi Mây mang ≥ 5; Tỏa Sáng trúng nó thì nó thả lại.
+- **Bùa Gió**: 10 s chạy 7,2 m/s và lướt không hồi chiêu.
+- Đêm 3 có gió mạnh mỗi 30 s, báo trước bằng lá bay.
+- **Điểm:** +10 mỗi đom đóm **nạp** vào đèn, +100 mỗi đèn thắp, +5 mỗi Bóng Mực trúng Tỏa Sáng. Khi thắng cộng thêm `floor(giây còn lại) × 2 + 50 × lửa còn lại`. Tổng điểm là tổng các Đêm đã thắng.
+- Thắng Đêm 3 thì tới màn **Bình Minh**. Thua thì chơi lại Đêm đó.
 
-Tuning đầy đủ có trong [game.contract.json](game.contract.json). Mọi khái niệm của contract đều có trong game. `fall_enabled: false` vì đảo có rìa chặn (bán kính 30 m) nên không thể rơi. Giả định cho các chỗ mơ hồ: [docs/notes/phase-1.md](docs/notes/phase-1.md).
+Tuning đầy đủ có trong [game.contract.json](game.contract.json). Giả định cho chỗ ticket chưa nói: [docs/notes/phase-2.md](docs/notes/phase-2.md) (Phase 1: [phase-1.md](docs/notes/phase-1.md)).
 
 ## Kiểm chứng
 
-- `npm test`: 43 test (unit test cho luật, 9 scenario headless chạy qua CLI thật, mỗi scenario chạy 2 lần để so từng byte, kiểm tra định dạng, mã thoát 2 khi file sai).
-- `npm run proof -- phase-1`: sinh [docs/proof/phase-1/RESULTS.md](docs/proof/phase-1/RESULTS.md) và output `.jsonl` thật.
+- `npm test`: 80 test. Gồm unit test cho luật và bản đồ, 22 scenario headless chạy qua CLI thật (mỗi scenario 2 lần để so từng byte), kiểm tra định dạng v1.1, mã thoát 2, và hiệu năng (trọn một đêm 21 600 tick ≤ 30 s; thực tế < 0,5 s).
+- `npm run proof -- phase-2`: sinh [docs/proof/phase-2/RESULTS.md](docs/proof/phase-2/RESULTS.md) và output `.jsonl`. Bằng chứng Phase 1 nằm ở `docs/proof/phase-1/` (khớp tag `phase-1`).
 - CI (GitHub Actions) chạy test, proof và build trên Ubuntu và macOS mỗi lần push.
-- Ảnh chơi thật: [docs/proof/phase-1/screens/](docs/proof/phase-1/screens/).
+- Ảnh chơi thật và FPS (144 FPS @1280×720, `?fps` để bật bộ đếm): [docs/proof/phase-2/screens/](docs/proof/phase-2/screens/).
 
 ## Harness AI
 
@@ -62,7 +69,7 @@ Nhật ký dùng AI: [docs/notes/ai-log.md](docs/notes/ai-log.md).
 
 ## Sáng tạo của tôi
 
-- **Mây là một chiến binh gấu trúc** ([src/web/character.js](src/web/character.js)): áo choàng xanh ngọc với vạt đỏ, giáp vai đồng, đai đỏ, dây chéo và huy hiệu trước ngực, kiếm trong vỏ đeo sau lưng (chỉ để trang trí, không bao giờ rút ra). Mô hình dựng theo ảnh tham chiếu trong `game_charactor/`. **Không đội nón lá**, đèn lồng nhỏ treo ở đai (lệch so với PRD-0, xem giả định 16 trong docs/notes/phase-1.md). Có vòng đi bộ đơn giản (vung tay chân). Xem mẫu ở `http://localhost:5173/character.html` (thêm `?angle=180` để cố định góc). Ảnh: [front](docs/proof/phase-1/screens/04-character-front.png), [back](docs/proof/phase-1/screens/05-character-back.png), [side](docs/proof/phase-1/screens/06-character-side.png).
+- **Mây là một chiến binh gấu trúc** (từ Phase 2 áo theo màu chuẩn `#E8E2D0`, khăn `#C8102E`) ([src/web/character.js](src/web/character.js)): áo choàng xanh ngọc với vạt đỏ, giáp vai đồng, đai đỏ, dây chéo và huy hiệu trước ngực, kiếm trong vỏ đeo sau lưng (chỉ để trang trí, không bao giờ rút ra). Mô hình dựng theo ảnh tham chiếu trong `game_charactor/`. **Không đội nón lá**, đèn lồng nhỏ treo ở đai (lệch so với PRD-0, xem giả định 16 trong docs/notes/phase-1.md). Có vòng đi bộ đơn giản (vung tay chân). Xem mẫu ở `http://localhost:5173/character.html` (thêm `?angle=180` để cố định góc). Ảnh: [front](docs/proof/phase-1/screens/04-character-front.png), [back](docs/proof/phase-1/screens/05-character-back.png), [side](docs/proof/phase-1/screens/06-character-side.png).
 - Đèn nhỏ treo ở đai của Mây sáng mạnh dần theo số đom đóm đang mang (chỉ là hiển thị).
 - Bầu trời và sương chuyển từ tím đen sang tím hồng nhạt theo số đèn đã thắp. Đèn đã thắp có vòng sáng vàng đánh dấu vùng an toàn.
 

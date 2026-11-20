@@ -25,3 +25,16 @@ Công cụ: Claude Code (desktop app, model Claude Opus 5.5). Harness: xem READM
 - Lần đầu phần bụng màu kem bị thân che, phát hiện nhờ ảnh trên trang xem mẫu, đã sửa vị trí.
 - Chỉ đổi `src/web/`, nên output headless không đổi (43/43 test xanh).
 - Sau đó chủ dự án quyết định **bỏ nón lá**. Agent đã nhắc rằng việc này lệch PRD-0, rồi làm theo: giữ đèn nhỏ, chuyển đèn xuống đai, ghi thành giả định 16 và chụp lại ảnh.
+
+## Phase 2
+
+| Bước | Việc | Kết quả / ghi chú |
+|---|---|---|
+| Đọc ticket | Board tải phase từ database; `Artifact read` và `ArtifactData` không đọc được (artifact của tổ chức khác) | Mở board trong trình duyệt tích hợp và đọc bằng ảnh chụp từng đoạn. Lần đầu cuộn quá xa nên sót nội dung; đọc lại với bước cuộn nhỏ hơn |
+| Tag phase-1 | Hỏi người dùng trước, sau đó commit nhỏ, tag, push | phase-1 → `4b9f73b` |
+| Sim v1.1 | Viết lại `game.js` theo thứ tự 12 bước, `maps.js` cho 3 đêm | Smoke test 3 đêm × 21 600 tick đều chạy được ngay |
+| Scenario | 22 scenario, kỳ vọng tính tay | 19/22 đạt lần đầu. 1 lỗi code thật (biên vùng an toàn), 2 lỗi tính tay (ghi ở phase-2.md) |
+| Renderer | 3 đêm, menu, tạm dừng, cài đặt, âm thanh, HUD, bảng màu | Phát hiện lỗi tạm dừng không tiếp tục được, nhờ kiểm tra `sim_tick` trong trình duyệt |
+| Harness | AGENTS.md: v1.1, quy ước biên, bẫy bộ đếm. Skill: kiểu kiểm `between`/`dist` và các bẫy đã gặp | |
+
+**Token / chi phí Phase 2:** _(điền số thật từ trang usage hoặc `/cost`)_. Phần tốn nhiều nhất là đọc ticket bằng ảnh chụp, khoảng 20 ảnh. Cách tiết kiệm: ghi ticket thành `phase-2.md` một lần rồi chỉ đọc file đó; kiểm chứng bằng `npm test` thay vì để agent tự đọc output.

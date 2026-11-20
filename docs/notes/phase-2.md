@@ -60,3 +60,20 @@ Nguồn: tab Phase 2 trên lab board (đọc qua trình duyệt ngày 2026-11-20
 | P2-12 | Thắng/thua xét sau mỗi tick; điểm chuẩn hóa | scenario `win`, `dawn`, `no_flames` |
 | P2-13 | Tất định; trọn một đêm 21 600 tick ≤ 30 s | test tất định + đo thời gian |
 | P2-14 | Bản chơi: chuỗi 3 đêm, menu, tạm dừng, cài đặt (lưu), âm thanh, HUD đầy đủ, bảng màu, ≥ 30 FPS @1280×720 | ảnh chụp + số đo FPS |
+
+## Đánh giá Phase 2
+
+| AC | Trạng thái | Bằng chứng |
+|---|---|---|
+| P2-1 … P2-13 | Đạt | `npm test` 80/80; [RESULTS.md](../proof/phase-2/RESULTS.md) có 22 scenario chạy 2 lần cho cùng sha256. Trọn một đêm 21 600 tick mất 0,3–0,5 s (đêm 3 ≈ 0,48 s) |
+| P2-14 | Đạt (kiểm thủ công) | [screens/](../proof/phase-2/screens/): menu, giới thiệu đêm, HUD Đêm 1 (**144 FPS @1280×720**), menu tạm dừng, Đêm 2 (cầu, bục, Gió Lạc), Đêm 3 (tầng, tháp), Bình Minh (tổng 3 đêm). Cài đặt lưu qua `localStorage` (đã kiểm tra bằng tải lại trang). Âm thanh tổng hợp bằng WebAudio, chưa có ảnh/clip làm bằng chứng nghe được |
+
+- **Hồi quy Phase 1**: mọi scenario Phase 1 vẫn chạy. Kỳ vọng được **cập nhật theo số chuẩn**, có lý do trong bảng "Thay đổi so với Phase 1". Bỏ unit test "không rời được đảo" vì ticket thay luật này bằng luật rơi khỏi đảo.
+- **Lỗi tìm ra nhờ test:**
+  - Vùng an toàn dùng `<` thay vì `≤`. Bóng có thể đứng đúng 6,000 m mà output vẫn ghi 6.000. Đã sửa: biên tính là "trong", thêm khoảng đệm 0.001.
+  - Tạm dừng trong bản chơi không tiếp tục được, vì sim không thấy cạnh false→true của nút `pause`. Đã sửa: gửi lần thả nút trước khi tiếp tục.
+- **Kỳ vọng tính tay sai (đã sửa kèm lý do, không phải sửa cho khớp output):**
+  - `dash_cd_s` là 71 tick chứ không phải 70: bộ đếm được đặt ở bước 0 rồi giảm 19 lần trước snapshot 20.
+  - `safe_evict`: bóng ra tới mép ở tick 30 rồi đuổi tiếp một bước ngay trong tick đó.
+- **Ảnh dựng nhanh:** ảnh Đêm 2, Đêm 3 và Bình Minh được dựng bằng cách đánh dấu đèn đã sáng qua `window.__game` để chuyển đêm nhanh. Chưa ai chơi trọn 3 đêm bằng tay.
+- **Rủi ro với test ẩn:** các giả định 2 (xuất phát Đêm 3), 3–4 (spawning/wander), 6 (chênh cao), 8 (tick của `night_start`), 14 (`invuln` boolean).
