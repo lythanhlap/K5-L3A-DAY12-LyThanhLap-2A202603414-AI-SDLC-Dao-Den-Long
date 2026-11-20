@@ -6,3 +6,6 @@ dist/
 out/
 docs/proof/ci-check/
 docs/proof/*/runs/.rerun/
+game_charactor
+data/
+release/
