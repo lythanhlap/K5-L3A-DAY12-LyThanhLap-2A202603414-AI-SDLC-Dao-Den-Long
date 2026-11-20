@@ -25,8 +25,15 @@
       cam.lookAt(0, 1.05, 0);
       const mây = makePlayer();
       scene.add(mây);
+      const fit = () => {
+        r.setSize(innerWidth, innerHeight);
+        cam.aspect = innerWidth / Math.max(1, innerHeight);
+        cam.updateProjectionMatrix();
+      };
+      addEventListener('resize', fit);
       const fixed = new URLSearchParams(location.search).get('angle');
       (function loop(t) {
+        if (r.domElement.width === 0 && innerWidth > 0) fit(); // page loaded while the view had no size
         mây.rotation.y = fixed != null ? (Number(fixed) * Math.PI) / 180 : t / 1500;
         r.render(scene, cam);
         requestAnimationFrame(loop);

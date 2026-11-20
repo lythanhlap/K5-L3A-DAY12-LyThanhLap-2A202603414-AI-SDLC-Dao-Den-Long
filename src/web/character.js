@@ -1,5 +1,5 @@
 // Mây as a panda warrior (visual only, built from primitives; reference: game_charactor/*.png).
-// Model faces +Z, feet at y = 0. Carries a small lantern on the sash (no hat, by owner decision).
+// Model faces +Z, feet at y = 0. Wears a nón lá with a small lantern hanging from the brim (PRD-0).
 import * as THREE from 'three';
 import { PAL } from './palette.js';
 
@@ -13,6 +13,8 @@ const M = {
   leather: std('#5a3b22'),
   bronze: std('#a37a3c', { metalness: 0.6, roughness: 0.45 }),
   gold: std(PAL.gold, { metalness: 0.7, roughness: 0.35 }),
+  straw: std('#e3c27a'), // nón lá
+  strawDark: std('#b08a48'),
 };
 
 function mesh(geo, mat, x = 0, y = 0, z = 0) {
@@ -107,20 +109,41 @@ export function makePlayer() {
     head.add(patch);
     head.add(mesh(new THREE.SphereGeometry(0.02, 6, 4), M.fur, 0.11 * s, 0.06, 0.29)); // eye shine
   }
-  root.add(head);
+  // nón lá (PRD-0: "Mây đội nón lá có treo một chiếc đèn lồng nhỏ"): straw cone + rim + a few ribs
+  const hat = new THREE.Group();
+  hat.position.y = 0.2; // brim sits just above the eyes, ears tucked under
+  const cone = mesh(new THREE.ConeGeometry(0.68, 0.36, 32, 1, true), M.straw, 0, 0.18, 0);
+  cone.material = M.straw.clone();
+  cone.material.side = THREE.DoubleSide;
+  hat.add(cone);
+  const rim = mesh(new THREE.TorusGeometry(0.68, 0.018, 6, 40), M.strawDark);
+  rim.rotation.x = Math.PI / 2;
+  hat.add(rim);
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    const rib = mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.76, 4), M.strawDark, Math.sin(a) * 0.34, 0.18, Math.cos(a) * 0.34);
+    rib.rotation.set(-Math.cos(a) * 1.08, 0, Math.sin(a) * 1.08); // top leans in toward the tip: lies on the cone surface
+    hat.add(rib);
+  }
+  hat.add(mesh(new THREE.SphereGeometry(0.025, 6, 4), M.strawDark, 0, 0.37, 0)); // tip
+  // chin strap in the scarf red
+  for (const s of [-1, 1]) {
+    const strap = mesh(new THREE.BoxGeometry(0.02, 0.32, 0.02), M.red, 0.26 * s, -0.16, 0.1);
+    strap.rotation.z = 0.25 * s;
+    hat.add(strap);
+  }
+  head.add(hat);
 
-  // small lantern hanging from the sash (hat removed by owner decision, see docs/notes/phase-1.md)
-  root.add(mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.14, 4), M.black, 0.36, 0.73, 0.36));
-  const lamp = mesh(
-    new THREE.SphereGeometry(0.09, 12, 8),
-    std('#ffb347', { emissive: '#ff9a2e', emissiveIntensity: 1.6 }),
-    0.36, 0.6, 0.36,
-  );
+  // small lantern hanging from the hat brim, front-right; glows brighter with carried motes
+  head.add(mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.18, 4), M.black, 0.46, 0.1, 0.36)); // string
+  const lamp = mesh(new THREE.SphereGeometry(0.085, 12, 8), std('#ffb347', { emissive: '#ff9a2e', emissiveIntensity: 1.6 }), 0.46, -0.04, 0.36);
   lamp.scale.set(1, 1.25, 1);
-  root.add(lamp);
+  head.add(lamp);
+  head.add(mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.02, 8), M.red, 0.46, 0.06, 0.36)); // lantern cap
   const glow = new THREE.PointLight('#ffb050', 4, 9, 1.5);
-  glow.position.set(0.36, 0.6, 0.45);
-  root.add(glow);
+  glow.position.set(0.46, -0.04, 0.48);
+  head.add(glow);
+  root.add(head);
 
   // sheathed sword on the back (decoration, never drawn)
   const sword = new THREE.Group();
