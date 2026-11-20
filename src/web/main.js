@@ -1,7 +1,8 @@
 // Browser renderer + UI flow. Drives the deterministic sim (src/sim/game.js) at a fixed 60 Hz.
 // Rules never live here: this file only reads sim state and feeds input.
 import * as THREE from 'three';
-import { createGame, step, timeLeft, windWarning, NIGHTS, fuelOf, lightCost, capacityOf, winThreshold } from '../sim/game.js';
+import { createGame, createBenchGame, step, timeLeft, windWarning, NIGHTS, fuelOf, lightCost, capacityOf, winThreshold } from '../sim/game.js';
+import { addEntry, isValidName, isoWithOffset, sortEntries } from '../leaderboard.js';
 import { TICK_RATE, TUNING, RULES } from '../sim/tuning.js';
 import { makePlayer, animatePlayer } from './character.js';
 import { buildWorld } from './world.js';
@@ -14,9 +15,14 @@ const params = new URLSearchParams(location.search);
 
 // ---------------------------------------------------------------- settings (persisted)
 const SETTINGS_KEY = 'ddl-settings';
-const settings = { volume: 0.6, sens: 0.5, gamma: 1, colorblind: false };
+// Ticket-04: every action can be rebound (saved); arrows ← → stay reserved for the camera.
+const DEFAULT_KEYS = { up: 'KeyW', down: 'KeyS', left: 'KeyA', right: 'KeyD', jump: 'Space', dash: 'ShiftLeft', interact: 'KeyE', pulse: 'KeyF', pause: 'Escape' };
+const KEY_LABELS = { up: 'Đi lên', down: 'Đi xuống', left: 'Sang trái', right: 'Sang phải', jump: 'Nhảy', dash: 'Lướt', interact: 'Tương tác (nạp / châm dầu)', pulse: 'Tỏa sáng', pause: 'Tạm dừng' };
+const RESERVED = { ArrowLeft: 'xoay camera trái', ArrowRight: 'xoay camera phải', F3: 'bộ đếm FPS' };
+const settings = { volume: 0.6, sens: 0.5, gamma: 1, colorblind: false, captions: true, reduceMotion: false, largeText: false, keys: { ...DEFAULT_KEYS } };
 try {
-  Object.assign(settings, JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}'));
+  const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
+  Object.assign(settings, saved, { keys: { ...DEFAULT_KEYS, ...(saved.keys || {}) } });
 } catch {}
 const saveSettings = () => {
   try {
@@ -54,6 +60,55 @@ function applyColorblind() {
   }
 }
 $('set-cb').checked = settings.colorblind;
+// accessibility toggles (Ticket-04)
+function applyAccessibility() {
+  document.documentElement.classList.toggle('large', settings.largeText);
+  $('captions').classList.toggle('hidden', !settings.captions);
+}
+for (const [id, key] of [['set-captions', 'captions'], ['set-motion', 'reduceMotion'], ['set-large', 'largeText']]) {
+  $(id).checked = settings[key];
+  $(id).addEventListener('change', (e) => {
+    settings[key] = e.target.checked;
+    applyAccessibility();
+    saveSettings();
+  });
+}
+applyAccessibility();
+const keyName = (code) =>
+  ({ Space: 'Space', ShiftLeft: 'Shift', ShiftRight: 'Shift phải', Escape: 'Esc', ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→', Enter: 'Enter', Tab: 'Tab', ControlLeft: 'Ctrl' })[code] ||
+  code.replace(/^Key/, '').replace(/^Digit/, '').replace(/^Numpad/, 'Num ');
+let capturing = null;
+function keyConflicts() {
+  const byCode = {};
+  for (const [a, c] of Object.entries(settings.keys)) (byCode[c] ||= []).push(a);
+  return Object.values(byCode).filter((list) => list.length > 1).flat();
+}
+function renderKeys() {
+  const box = $('keys');
+  box.innerHTML = '';
+  const bad = new Set(keyConflicts());
+  for (const a of Object.keys(DEFAULT_KEYS)) {
+    const label = document.createElement('span');
+    label.textContent = KEY_LABELS[a];
+    const b = document.createElement('button');
+    b.className = 'alt' + (bad.has(a) ? ' conflict' : '');
+    b.textContent = capturing === a ? 'Nhấn phím…' : keyName(settings.keys[a]);
+    b.addEventListener('click', () => {
+      capturing = a;
+      renderKeys();
+    });
+    box.append(label, b);
+  }
+  const dup = keyConflicts();
+  $('keys-note').textContent = dup.length ? `⚠ Trùng phím: ${dup.map((a) => KEY_LABELS[a]).join(', ')}` : '';
+  const k = settings.keys;
+  $('menu-keys').innerHTML =
+    `<kbd>${keyName(k.up)}${keyName(k.left)}${keyName(k.down)}${keyName(k.right)}</kbd> đi · <kbd>${keyName(k.jump)}</kbd> nhảy · <kbd>${keyName(k.dash)}</kbd> lướt · <kbd>${keyName(k.interact)}</kbd> nạp / châm dầu<br/>` +
+    `<kbd>${keyName(k.pulse)}</kbd>/click: tỏa sáng · kéo chuột/<kbd>←</kbd><kbd>→</kbd>: camera · <kbd>${keyName(k.pause)}</kbd>: tạm dừng`;
+  document.querySelector('#cd-dash span').textContent = `Lướt ${keyName(k.dash)}`;
+  document.querySelector('#cd-pulse span').textContent = `Sáng ${keyName(k.pulse)}`;
+}
+renderKeys();
 $('set-cb').addEventListener('change', (e) => {
   settings.colorblind = e.target.checked;
   applyColorblind();
@@ -86,7 +141,7 @@ const moon = new THREE.DirectionalLight('#9aa8ff', 0.5);
 moon.position.set(-30, 50, -20);
 scene.add(moon);
 
-const backdrop = createBackdrop(scene);
+const backdrop = new URLSearchParams(location.search).has('bench') ? { update() {} } : createBackdrop(scene);
 const playerMesh = makePlayer();
 window.__render = { playerMesh, camera }; // debug/verification hook (read-only use)
 scene.add(playerMesh);
@@ -195,9 +250,21 @@ let lastMouseX = 0;
 let dragged = 0;
 let pauseQueued = false;
 addEventListener('keydown', (e) => {
+  if (capturing) {
+    e.preventDefault();
+    if (RESERVED[e.code]) {
+      $('keys-note').textContent = `⚠ ${keyName(e.code)} đang dùng cho ${RESERVED[e.code]}`;
+    } else {
+      settings.keys[capturing] = e.code;
+      saveSettings();
+    }
+    capturing = null;
+    renderKeys();
+    return;
+  }
   keys.add(e.code);
-  if (e.code === 'Space' || e.code.startsWith('Arrow')) e.preventDefault();
-  if ((e.code === 'Escape' || e.code === 'KeyP') && (phase === 'playing' || phase === 'paused')) togglePause();
+  if (e.code === 'Space' || e.code.startsWith('Arrow') || e.code === 'Tab') e.preventDefault();
+  if (e.code === settings.keys.pause && (phase === 'playing' || phase === 'paused')) togglePause();
   if (e.code === 'F3') $('fps').classList.toggle('hidden');
 });
 addEventListener('keyup', (e) => keys.delete(e.code));
@@ -224,17 +291,18 @@ function sampleInput() {
   if (keys.has('ArrowRight')) camYaw -= 2;
   let x = 0;
   let z = 0;
-  if (keys.has('KeyW') || keys.has('ArrowUp')) z += 1;
-  if (keys.has('KeyS') || keys.has('ArrowDown')) z -= 1;
-  if (keys.has('KeyD')) x -= 1; // screen-right = input x -1 (contract rotation, camera looks along +forward)
-  if (keys.has('KeyA')) x += 1;
+  const k = settings.keys;
+  if (keys.has(k.up)) z += 1;
+  if (keys.has(k.down)) z -= 1;
+  if (keys.has(k.right)) x -= 1; // screen-right = input x -1 (contract rotation, camera looks along +forward)
+  if (keys.has(k.left)) x += 1;
   const input = {
     move: [x, z],
     cam_yaw_deg: camYaw,
-    jump: keys.has('Space'),
-    interact: keys.has('KeyE'),
-    pulse: keys.has('KeyF') || mousePulse,
-    dash: keys.has('ShiftLeft') || keys.has('ShiftRight'),
+    jump: keys.has(k.jump),
+    interact: keys.has(k.interact),
+    pulse: keys.has(k.pulse) || mousePulse,
+    dash: keys.has(k.dash),
     pause: pauseQueued,
   };
   mousePulse = false;
@@ -252,9 +320,11 @@ let phase = 'menu'; // menu | intro | playing | paused | result | dawn
 let settingsReturn = 'menu';
 let night = 1;
 let totalScore = 0;
+let nightsWon = 0;
+const BENCH = params.has('bench');
 let game = null;
 let world = null;
-const baseSeed = params.get('seed') != null ? Number(params.get('seed')) : Date.now() & 0x7fffffff;
+const baseSeed = params.get('seed') != null ? Number(params.get('seed')) : BENCH ? 42 : Date.now() & 0x7fffffff;
 const lanternMeshes = new Map();
 const moteMeshes = new Map();
 const shadeMeshes = new Map();
@@ -271,9 +341,9 @@ function clearMap(map) {
   map.clear();
 }
 
-function loadNight(n) {
+function loadNight(n, prebuilt = null) {
   night = n;
-  game = createGame({ seed: baseSeed + n, night: n });
+  game = prebuilt || createGame({ seed: baseSeed + n, night: n });
   window.__game = game;
   if (world) scene.remove(world);
   world = buildWorld(n);
@@ -319,6 +389,7 @@ const actions = {
     initAudio();
     setVolume(settings.volume);
     totalScore = 0;
+    nightsWon = 0;
     startIntro(1);
   },
   'start-night': () => {
@@ -335,13 +406,33 @@ const actions = {
     settingsReturn = phase === 'paused' ? 'scr-pause' : 'scr-menu';
     show('scr-settings');
   },
-  'settings-back': () => show(settingsReturn),
+  'settings-back': () => {
+    capturing = null;
+    show(settingsReturn);
+  },
+  'keys-reset': () => {
+    settings.keys = { ...DEFAULT_KEYS };
+    capturing = null;
+    saveSettings();
+    renderKeys();
+  },
+  board: async () => {
+    const prev = phase;
+    phase = 'board';
+    show('scr-board');
+    const list = await fetchBoard();
+    $('board-rows').innerHTML = list.length
+      ? list.map((e, i) => `<tr><td>${i + 1}</td><td>${escapeHtml(e.name)}</td><td>${e.score}</td><td>${e.nights_won}/3</td><td>${e.achieved_at.slice(0, 10)}</td></tr>`).join('')
+      : '<tr><td colspan="5">Chưa có điểm nào.</td></tr>';
+    if (prev === 'dawn') phase = 'board';
+  },
   next: () => {
     if (game.state === 'won') {
       if (night < 3) startIntro(night + 1);
       else {
         phase = 'dawn';
         $('dawn-score').textContent = totalScore;
+        mountSaveForm('scr-dawn');
         show('scr-dawn');
       }
     } else startIntro(night);
@@ -353,6 +444,90 @@ addEventListener('keydown', (e) => {
   const visible = [...document.querySelectorAll('.screen')].find((s) => !s.classList.contains('hidden'));
   visible?.querySelector('button')?.click();
 });
+
+// ---------------------------------------------------------------- captions / visual cues (Ticket-04)
+const captions = [];
+let shadeCue = null;
+let shakeT = 0;
+const warnedLow = new Set();
+let windCaptioned = false;
+let tenCaptioned = false;
+function addCaption(text, warn = false, ms = 3000) {
+  captions.push({ text, warn, until: performance.now() + ms });
+}
+function renderCaptions() {
+  const now = performance.now();
+  while (captions.length && captions[0].until < now) captions.shift();
+  const live = captions.slice(-3).map((c) => `<div class="${c.warn ? 'warn' : ''}">${settings.colorblind && c.warn ? '⚠ ' : ''}${escapeHtml(c.text)}</div>`);
+  if (game.player.charm > 0) live.push(`<div>Bùa Gió ${Math.ceil(game.player.charm / 60)} s</div>`);
+  if (game.wind.active) live.push('<div class="warn">Gió mạnh!</div>');
+  const html = live.join('');
+  if ($('captions').innerHTML !== html) $('captions').innerHTML = html;
+}
+function updateCues(tl) {
+  if (windWarning(game) && !windCaptioned) addCaption('Gió sắp thổi!', true);
+  windCaptioned = windWarning(game);
+  if (tl <= 10 && tl > 0 && !tenCaptioned) addCaption('10 giây cuối!', true, 4000);
+  tenCaptioned = tl <= 10;
+  for (const l of game.lanterns) {
+    const low = l.lit && fuelOf(l) < TUNING.low_fuel_threshold;
+    if (low && !warnedLow.has(l.id)) addCaption(`Đèn ${l.id} sắp cạn dầu (dưới 30)!`, true, 4000);
+    if (low) warnedLow.add(l.id);
+    else warnedLow.delete(l.id);
+  }
+}
+const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+
+// ---------------------------------------------------------------- leaderboard (Ticket-04)
+const LOCAL_BOARD = 'ddl-leaderboard';
+function localBoard() {
+  try {
+    return JSON.parse(localStorage.getItem(LOCAL_BOARD) || '[]');
+  } catch {
+    return [];
+  }
+}
+function saveLocalBoard(list) {
+  try {
+    localStorage.setItem(LOCAL_BOARD, JSON.stringify(list));
+  } catch {}
+}
+async function fetchBoard() {
+  try {
+    const r = await fetch('/api/leaderboard');
+    if (r.ok) return (await r.json()).entries;
+  } catch {}
+  return sortEntries(localBoard());
+}
+async function submitScore(entry) {
+  try {
+    const r = await fetch('/api/leaderboard', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(entry) });
+    if (r.ok) {
+      saveLocalBoard((await r.json()).entries);
+      return 'disk';
+    }
+  } catch {}
+  saveLocalBoard(addEntry(localBoard(), entry)); // static hosting without the server: browser storage
+  return 'local';
+}
+function mountSaveForm(screenId) {
+  const box = document.querySelector(`#${screenId} .save-score`);
+  box.innerHTML = '';
+  box.append($('tpl-save').content.cloneNode(true));
+  const input = box.querySelector('.save-name');
+  const note = box.querySelector('.save-note');
+  const btn = box.querySelector('.save-btn');
+  input.addEventListener('keydown', (e) => e.stopPropagation()); // typing a name must not trigger game keys
+  btn.addEventListener('click', async () => {
+    if (!isValidName(input.value)) {
+      note.textContent = 'Tên cần 3–12 ký tự: chữ, số hoặc _';
+      return;
+    }
+    const entry = { name: input.value, score: totalScore, nights_won: nightsWon, achieved_at: isoWithOffset(), seed: baseSeed };
+    const where = await submitScore(entry);
+    box.innerHTML = `<p>Đã lưu điểm ${totalScore} (${where === 'disk' ? 'trên đĩa' : 'trong trình duyệt'}).</p>`;
+  });
+}
 
 let lastSecond = null;
 function handleEvents(events) {
@@ -373,12 +548,19 @@ function handleEvents(events) {
         break;
       case 'player_hit':
         sfx.hit();
+        if (!settings.reduceMotion) {
+          shakeT = 0.35;
+          $('flash').style.opacity = 1;
+          setTimeout(() => ($('flash').style.opacity = 0), 120);
+        }
         break;
       case 'dash':
         sfx.dash();
         break;
       case 'shade_spawned':
         sfx.shade();
+        addCaption('Bóng Mực xuất hiện!', true);
+        shadeCue = { id: e.data.id, until: performance.now() + 3000 };
         break;
       case 'drifter_steal':
         sfx.steal();
@@ -392,7 +574,10 @@ function handleEvents(events) {
         break;
       case 'game_over': {
         const won = e.data.result === 'won';
-        if (won) totalScore += game.score;
+        if (won) {
+          totalScore += game.score;
+          nightsWon++;
+        }
         (won ? sfx.win : sfx.lose)();
         phase = 'result';
         const need = winThreshold(game);
@@ -400,6 +585,8 @@ function handleEvents(events) {
         $('res-title').textContent = won ? `Đêm ${night} đã sáng!` : `Đêm ${night} chưa qua…`;
         $('res-body').innerHTML = `${reason}<br/>Điểm đêm: <b>${game.score}</b> · Tổng: <b>${totalScore}</b>`;
         $('res-next').textContent = won ? (night < 3 ? 'Đêm tiếp theo' : 'Đón bình minh') : 'Chơi lại Đêm';
+        if (!won) mountSaveForm('scr-result');
+        else document.querySelector('#scr-result .save-score').innerHTML = '';
         setTimeout(() => show('scr-result'), 700);
         break;
       }
@@ -435,7 +622,7 @@ function syncEntities(t, dt) {
   dA = Math.atan2(Math.sin(dA), Math.cos(dA));
   shownFacing += dA * Math.min(1, dt * 18);
   playerMesh.rotation.y = shownFacing;
-  playerMesh.visible = p.respawn === 0 && (p.invuln === 0 || Math.floor(t * 12) % 2 === 0);
+  playerMesh.visible = p.respawn === 0 && (p.invuln === 0 || settings.reduceMotion || Math.floor(t * 12) % 2 === 0);
   playerMesh.userData.glow.intensity = 2 + p.carried;
 
   const seen = new Set();
@@ -558,6 +745,11 @@ function updateCamera() {
   const f = [Math.sin(th), Math.cos(th)];
   const y = Math.max(p[1], -4);
   camera.position.set(p[0] - f[0] * 9, y + 5.5, p[2] - f[1] * 9);
+  if (shakeT > 0 && !settings.reduceMotion) {
+    const k = shakeT * 0.6;
+    camera.position.x += Math.sin(performance.now() * 0.09) * k;
+    camera.position.y += Math.cos(performance.now() * 0.11) * k;
+  }
   camera.lookAt(p[0] + f[0] * 2, y + 1.2, p[2] + f[1] * 2);
 }
 
@@ -588,7 +780,10 @@ function updateHud() {
   };
   cd('cd-dash', p.charm > 0 ? 0 : p.dashCd, TUNING.dash_cooldown_s * TICK_RATE, p.dashCd === 0 || p.charm > 0);
   cd('cd-pulse', p.pulseCd, TUNING.pulse_cooldown_s * TICK_RATE, p.pulseCd === 0 && p.carried >= TUNING.pulse_cost);
-  $('banner').textContent = p.charm > 0 ? `Bùa Gió ${Math.ceil(p.charm / 60)} s` : windWarning(game) ? 'Gió sắp nổi…' : game.wind.active ? 'Gió mạnh!' : '';
+  updateCues(tl);
+  renderCaptions();
+  const cueShade = shadeCue && performance.now() < shadeCue.until && settings.captions ? game.shades.find((s) => s.id === shadeCue.id) : null;
+  edgeArrow($('shade-arrow'), cueShade ? cueShade.pos : null, true);
 
   let near = null;
   let nd = Infinity;
@@ -614,24 +809,25 @@ function updateHud() {
       target = l;
     }
   }
-  const arrow = $('arrow');
-  if (!target) return arrow.classList.add('hidden');
-  v3.set(target.pos[0], target.pos[1] + 3, target.pos[2]).project(camera);
+  edgeArrow($('arrow'), target ? [target.pos[0], target.pos[1] + 3, target.pos[2]] : null);
+}
+
+/** Show `el` at the screen edge pointing toward world `pos` when it is off-screen (hidden otherwise). */
+function edgeArrow(el, pos) {
+  if (!pos) return el.classList.add('hidden');
+  v3.set(pos[0], pos[1], pos[2]).project(camera);
   const behind = v3.z > 1;
   const on = !behind && Math.abs(v3.x) < 0.95 && Math.abs(v3.y) < 0.95;
-  arrow.classList.toggle('hidden', on);
-  if (!on) {
-    let x = behind ? -v3.x : v3.x;
-    let y = behind ? -v3.y : v3.y;
-    const m = Math.max(Math.abs(x), Math.abs(y)) / 0.88;
-    x /= m;
-    y /= m;
-    const sx = ((x + 1) / 2) * innerWidth;
-    const sy = ((1 - y) / 2) * innerHeight;
-    arrow.style.left = `${sx - 14}px`;
-    arrow.style.top = `${sy - 14}px`;
-    arrow.style.transform = `rotate(${Math.atan2(x, y)}rad)`;
-  }
+  el.classList.toggle('hidden', on);
+  if (on) return;
+  let x = behind ? -v3.x : v3.x;
+  let y = behind ? -v3.y : v3.y;
+  const m = Math.max(Math.abs(x), Math.abs(y)) / 0.88;
+  x /= m;
+  y /= m;
+  el.style.left = `${((x + 1) / 2) * innerWidth - 14}px`;
+  el.style.top = `${((1 - y) / 2) * innerHeight - 14}px`;
+  el.style.transform = `rotate(${Math.atan2(x, y)}rad)`;
 }
 
 // ---------------------------------------------------------------- main loop (fixed 60 Hz)
@@ -641,9 +837,81 @@ const DT = 1 / TICK_RATE;
 const fps = { frames: 0, t0: performance.now(), avg: 0, samples: [] };
 window.__fps = fps;
 if (params.has('fps')) $('fps').classList.remove('hidden');
+// ---------------------------------------------------------------- Ticket-04 benchmark scene
+const bench = { t0: null, measureFrom: null, last: null, dts: [], heapPeak: 0, done: false, duration: Number(params.get('duration') || 30) };
+const IDLE = { move: [0, 0], cam_yaw_deg: 0 };
+function startBench() {
+  loadNight(1, createBenchGame(baseSeed));
+  phase = 'bench';
+  show(null);
+}
+function rendererInfo() {
+  const gl = renderer.getContext();
+  const ext = gl.getExtension('WEBGL_debug_renderer_info');
+  const gpu = ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
+  return `three.js r${THREE.REVISION} WebGL${renderer.capabilities.isWebGL2 ? '2' : '1'}; ${gpu}; ${navigator.userAgent.match(/(Chrome|Firefox|Safari)\/[\d.]+/)?.[0] || navigator.userAgent}`;
+}
+function benchFrame(now, dt) {
+  acc += dt;
+  while (acc >= DT) {
+    rememberPositions();
+    step(game, IDLE);
+    acc -= DT;
+  }
+  alpha = Math.min(1, acc / DT);
+  if (bench.t0 === null) bench.t0 = now;
+  const tb = (now - bench.t0) / 1000;
+  // camera: circle radius 30 at Y = 15 around (0,0,0), start at 0° = (30,15,0), counter-clockwise, 15 s per lap
+  const th = (2 * Math.PI * tb) / 15;
+  camera.position.set(30 * Math.cos(th), 15, 30 * Math.sin(th));
+  camera.lookAt(0, 0, 0);
+  syncEntities(now / 1000, dt);
+  renderer.render(scene, camera);
+  if (window.__benchFirstFrameEpoch === undefined) window.__benchFirstFrameEpoch = Date.now();
+  if (bench.done) return;
+  if (performance.memory) bench.heapPeak = Math.max(bench.heapPeak, performance.memory.usedJSHeapSize);
+  if (tb >= 3) {
+    // 3 s warm-up is not measured; then exactly `duration` seconds of frame times
+    if (bench.measureFrom === null) bench.measureFrom = now;
+    else bench.dts.push(now - bench.last);
+    bench.last = now;
+    if (now - bench.measureFrom >= bench.duration * 1000) finishBench();
+  }
+}
+function finishBench() {
+  bench.done = true;
+  const d = bench.dts;
+  const N = d.length;
+  const sum = d.reduce((a, b) => a + b, 0);
+  const sorted = [...d].sort((a, b) => a - b);
+  const k = Math.max(1, Math.ceil(0.01 * N));
+  const worst = sorted.slice(-k);
+  const p95 = sorted[Math.min(N - 1, Math.ceil(0.95 * N) - 1)];
+  window.__benchResult = {
+    frames: N,
+    avg_fps: (1000 * N) / sum,
+    p1_low_fps: 1000 / (worst.reduce((a, b) => a + b, 0) / k),
+    frame_ms_p95: p95,
+    js_heap_peak_mb: performance.memory ? bench.heapPeak / 1048576 : null,
+    renderer: rendererInfo(),
+    shades: game.shades.length,
+    motes: game.motes.length,
+    width: innerWidth,
+    height: innerHeight,
+  };
+  $('fps').classList.remove('hidden');
+  $('fps').textContent = `BENCH done: ${N} frames, avg ${window.__benchResult.avg_fps.toFixed(1)} FPS`;
+}
+
 function frame(now) {
   const dt = Math.min(0.1, (now - last) / 1000);
   last = now;
+  if (phase === 'bench') {
+    benchFrame(now, dt);
+    requestAnimationFrame(frame);
+    return;
+  }
+  if (shakeT > 0) shakeT = Math.max(0, shakeT - dt);
   if (game && (phase === 'playing' || pauseQueued)) {
     acc += dt;
     if (pauseQueued) acc = Math.max(acc, DT);
@@ -678,6 +946,9 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 applyColorblind();
-loadNight(1);
-show('scr-menu');
+if (BENCH) startBench();
+else {
+  loadNight(1);
+  show('scr-menu');
+}
 requestAnimationFrame(frame);
