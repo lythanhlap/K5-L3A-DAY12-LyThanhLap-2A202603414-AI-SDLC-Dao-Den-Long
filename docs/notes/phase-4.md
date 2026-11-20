@@ -86,7 +86,7 @@ Các lần thử chạy trước khi commit `d4e0cd0` nhưng cùng mã bench. Ch
 | Giảm chuyển động | Tắt rung camera và chớp đỏ khi bị đánh, tắt nhấp nháy nhân vật lúc bất tử. **Chưa có ảnh/clip** | Có code, chưa có bằng chứng hình ảnh |
 | Chữ ≥ 18 px @1280×720 | Đo `getComputedStyle` mọi phần tử chữ trong màn Cài đặt: nhỏ nhất **18 px** | Đạt |
 | Phiên chơi đầy đủ Đêm 1 → 3 → Bình Minh bằng tay | Chưa có người chơi trọn vẹn. Các màn hình đã được kiểm từng phần | Chưa kiểm trọn vẹn |
-| Video demo | **Chưa có.** Cần người chơi thật quay | Chưa đạt |
+| Video demo | `docs/demo/demo.mp4` (4:13, do chủ dự án tự quay và chơi; nén từ bản gốc 305 MB về 32,7 MB, H.264 CRF 28, 720p) và đính kèm Release v1.0.0 | Đạt |
 | Release `v1.0.0` + tag `phase-4` | Đã chuẩn bị file zip; chờ người dùng đồng ý push/tạo release | Chưa làm |
 
 - `npm test`: 123/123. Thêm 6 test Phase 4: bảng xếp hạng, lệnh export, cảnh bench, định dạng soak.

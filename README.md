@@ -1,6 +1,6 @@
 # Đảo Đèn Lồng
 
-> **Video demo:** _chưa có. Cần quay một phiên chơi thật (xem [docs/notes/phase-4.md](docs/notes/phase-4.md))_ · Đề bài lab: [LAB.md](LAB.md)
+> **Video demo (4:13):** [docs/demo/demo.mp4](docs/demo/demo.mp4) · cũng đính kèm ở [Release v1.0.0](https://github.com/lythanhlap/K5-L3A-DAY12-LyThanhLap-2A202603414-AI-SDLC-Dao-Den-Long/releases/tag/v1.0.0) · Đề bài lab: [LAB.md](LAB.md)
 > Ly Thanh Lap · 2A202603414 · Day 12 AI SDLC · **v1.0.0** · Test Contract **v1.3**
 
 ![Đảo Đèn Lồng: Đêm 1 với trăng, biển mây và đảo nổi](docs/proof/phase-3/screens/06-backdrop-moon-cloud-sea.jpg)
