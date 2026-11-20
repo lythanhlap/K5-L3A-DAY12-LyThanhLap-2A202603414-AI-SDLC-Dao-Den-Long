@@ -73,3 +73,16 @@ Nguồn: tab Phase 3 trên lab board (đọc qua trình duyệt ngày 2026-11-20
 | P3-7 | Sức chứa 10 + 2 × successful_lights, tối đa 20 | scenario `capacity` |
 | P3-8 | Contract v1.2: tuning, trường snapshot, scenario, sự kiện | unit test định dạng |
 | P3-9 | Bản chơi: thanh dầu, nhấp nháy < 30, HUD `mang/sức chứa`, chế độ mù màu được lưu | ảnh chụp |
+
+## Đánh giá Phase 3
+
+| AC | Trạng thái | Bằng chứng |
+|---|---|---|
+| P3-1 … P3-8 | Đạt | `npm test` 117/117; [RESULTS.md](../proof/phase-3/RESULTS.md) có 31 scenario, mỗi cái chạy 2 lần cho cùng sha256. Mọi kỳ vọng tính tay trước khi chạy; 9 scenario mới đạt ngay lần đầu |
+| P3-9 | Đạt (kiểm thủ công) | [screens/](../proof/phase-3/screens/): đèn dầu thấp nhấp nháy + thanh dầu, đèn tắt xẹp/nghiêng, HUD `6 / 10` và "cần 3 lúc bình minh", châm dầu bằng phím E (dầu 7,3 → 67,3, +30 điểm), chế độ mù màu (viền/mắt Bóng Mực `#00B3FF`, cảnh báo trắng + ⚠) được lưu. **144 FPS @1280×720** |
+
+- **Hồi quy Phase 1–2:** mọi scenario không bị thay thế vẫn đạt. Các test đổi hoặc xóa đều có lý do trong bảng "Thay đổi test cũ" và trong comment ngay tại test.
+- **Lỗi tìm ra trong lúc làm:** bóng đang `drain` mà bị châm dầu đẩy ra vẫn giữ trạng thái `drain` và tiếp tục hút trong lúc bị đẩy. Đã sửa (`startEviction` chuyển nó về `wander`), có scenario `drain_refuel` kiểm (`fuel_drain` = 0).
+- **Test viết sai rồi sửa:** test "đèn đầy" lệch 1 tick hao; test vùng an toàn chạy quá ngắn. Cả hai đều do test sai, không phải code sai.
+- **Đo FPS:** lần đầu ra 30 FPS. Nguyên nhân là tab trình duyệt không ở phía trước nên bị giảm nhịp vẽ (trang `character.html` nhẹ cũng bị). Đưa tab lên trước thì đo lại được 144 FPS.
+- **Rủi ro với test ẩn:** giả định 2 (bóng tới đèn yếu với `shade_speed`), 4 (thời điểm ghi `fuel_drain`), 5 (bóng vừa chuyển `drain` hút từ tick sau). Điểm `per_second_left` khai báo là 0 vì ticket bỏ thưởng thời gian.

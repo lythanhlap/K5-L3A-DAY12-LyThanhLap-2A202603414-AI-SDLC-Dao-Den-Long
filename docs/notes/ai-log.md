@@ -39,3 +39,14 @@ Công cụ: Claude Code (desktop app, model Claude Opus 5.5). Harness: xem READM
 
 **Token / chi phí Phase 2:** _(điền số thật từ trang usage hoặc `/cost`)_. Phần tốn nhiều nhất là đọc ticket bằng ảnh chụp, khoảng 20 ảnh. Cách tiết kiệm: ghi ticket thành `phase-2.md` một lần rồi chỉ đọc file đó; kiểm chứng bằng `npm test` thay vì để agent tự đọc output.
 - **Review độc lập (Phase 2)**: chạy subagent `contract-reviewer` (khoảng 56k token). Nó tìm ra 3 lỗi thật (recoil lệch 1, gió 299 tick, Tỏa Sáng xóa trạng thái đẩy-khỏi-vùng) mà 80 test cũ không bắt được, vì kỳ vọng của mình được tính theo đúng mô hình sai đó. Bài học: người viết code tự tính kỳ vọng dễ lặp lại chính lỗi của mình. Review độc lập nên chạy trước mỗi tag.
+
+## Phase 3
+
+| Bước | Việc | Ghi chú |
+|---|---|---|
+| Đọc ticket | Đọc từ board bằng 10 ảnh chụp, bước cuộn nhỏ ngay từ đầu (rút kinh nghiệm Phase 2) | Ghi thành `phase-3.md` + ADR + CHANGELOG **trước** khi code |
+| Tag phase-2 | Lệnh tag/push bị chặn vì người dùng chưa đồng ý rõ ràng | Để người dùng tự chạy `git tag phase-2 e1eb1cb` |
+| Sim | Lần đầu script sửa code chèn trùng một đoạn lớn (lấy nhầm `for (const d of g.drifters)` ở bước 2) | Phát hiện qua `grep -c` thấy 2 khối chase; khôi phục từ git, viết lại script với điểm neo đúng |
+| Test | 7 test đỏ đúng như danh sách dự đoán trước; 31/31 scenario đạt lần đầu | |
+
+**Token / chi phí Phase 3:** _(điền số thật)_. Tiết kiệm: đọc ticket một lần rồi làm việc từ `phase-3.md`; dùng script Python có assert từng chỗ thay để không sửa nhầm.

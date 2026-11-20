@@ -3,7 +3,7 @@
 > **Video demo:** _(sẽ thêm ở Phase 4)_ · Đề bài và tài liệu lab: [LAB.md](LAB.md)
 > Ly Thanh Lap · 2A202603414 · Day 12 AI SDLC
 
-Game 3D góc nhìn thứ ba (Three.js). Mây, người giữ đèn nhỏ tuổi (một chiến binh gấu trúc mang đèn lồng nhỏ), đi qua **3 đêm**: Đảo Bến, Đảo Cau, Đảo Chuông. Mây gom đom đóm để thắp lại các Đèn Lồng Lớn, né Bóng Mực và Gió Lạc. Logic game là một mô phỏng tất định (`src/sim/`), dùng chung cho bản chơi trên trình duyệt và chế độ headless theo **Test Contract v1.1**.
+Game 3D góc nhìn thứ ba (Three.js). Mây, người giữ đèn nhỏ tuổi (một chiến binh gấu trúc mang đèn lồng nhỏ), đi qua **3 đêm**: Đảo Bến, Đảo Cau, Đảo Chuông. Mây gom đom đóm để thắp lại các Đèn Lồng Lớn, né Bóng Mực và Gió Lạc. Logic game là một mô phỏng tất định (`src/sim/`), dùng chung cho bản chơi trên trình duyệt và chế độ headless theo **Test Contract v1.2**.
 
 ## Cài đặt và chạy (macOS / Linux / Windows, cần Node ≥ 22)
 
@@ -27,32 +27,31 @@ node src/headless.js --seed 1 --night 1 --ticks 600 --out out/run.jsonl \
 | `W A S D` / mũi tên ↑↓ | Di chuyển (theo hướng camera) |
 | `Space` | Nhảy |
 | `Shift` | Lướt (14 m/s trong 0,2 s, hồi 1,5 s) |
-| `E` | Nạp ánh sáng vào đèn gần nhất (≤ 2 m) |
+| `E` | Nạp ánh sáng vào đèn tắt, hoặc **châm dầu** cho đèn đang sáng (≤ 2 m) |
 | `F` / click chuột trái | Tỏa Sáng: tốn 3 đom đóm, làm choáng và đẩy Bóng Mực trong 5 m |
 | Kéo chuột / `←` `→` | Xoay camera (độ nhạy chỉnh trong Cài đặt) |
-| Cài đặt | Âm lượng, độ nhạy chuột, **gamma** 0.6–2.2 (mặc định 1.0 = đúng bảng màu chuẩn; tăng lên nếu màn hình tối). Lưu giữa các lần mở game |
+| Cài đặt | Âm lượng, độ nhạy chuột, **gamma** 0.6–2.2 (mặc định 1.0 = đúng bảng màu chuẩn; tăng lên nếu màn hình tối). Lưu giữa các lần mở game. Có tùy chọn **Bảng màu dễ phân biệt** (mù màu) |
 | `Esc` / `P` | Tạm dừng (Tiếp tục / Chơi lại Đêm / Cài đặt / Về menu) |
 | `Enter` | Chọn nút đầu tiên trên màn hình menu |
 
-## Luật và cách tính điểm (số chuẩn Ticket-02)
+## Luật và cách tính điểm (Ticket-03, xem [ADR-0001](docs/adr/0001-lantern-fuel-and-dawn-win.md))
 
-- Mang tối đa **10** đom đóm. Mỗi đèn cần **10**, nạp nhiều lần được.
-- Đèn đã sáng tạo vùng an toàn 6 m mà Bóng Mực không vào được.
-- Bóng Mực phát hiện Mây trong 12 m và bỏ đuổi khi xa hơn 18 m.
-- Bị chạm: −1 Ngọn Lửa, rơi một nửa số đom đóm ra quanh Mây (nhặt lại được trong 8 s), bất tử 1,5 s.
-- Rơi khỏi đảo: −1 lửa, mất hết đom đóm, hồi sinh ở điểm xuất phát.
-- **Gió Lạc** (Đêm 2–3) cướp tối đa 3 đom đóm khi Mây mang ≥ 5; Tỏa Sáng trúng nó thì nó thả lại.
-- **Bùa Gió**: 10 s chạy 7,2 m/s và lướt không hồi chiêu.
-- Đêm 3 có gió mạnh mỗi 30 s, báo trước bằng lá bay.
-- **Điểm:** +10 mỗi đom đóm **nạp** vào đèn, +100 mỗi đèn thắp, +5 mỗi Bóng Mực trúng Tỏa Sáng. Khi thắng cộng thêm `floor(giây còn lại) × 2 + 50 × lửa còn lại`. Tổng điểm là tổng các Đêm đã thắng.
-- Thắng Đêm 3 thì tới màn **Bình Minh**. Thua thì chơi lại Đêm đó.
+- **Mục tiêu:** giữ đảo sáng tới bình minh. Đêm dài 4:00 / 4:30 / 5:00. Thắng khi còn sống lúc hết giờ **và** số đèn đang sáng ≥ 3/5, 4/6, 5/7. Thắp đủ đèn không kết thúc Đêm. Hết lửa thì thua ngay.
+- **Đèn có dầu** 0–100. Vừa thắp thì đầy, hao 1/giây.
+  - Bấm `E` ở đèn đang sáng để châm: mỗi đom đóm +10 dầu.
+  - Hết dầu thì đèn tắt. Thắp lại chỉ cần 5 đom đóm (lần đầu cần 10).
+  - Đèn dưới 30 dầu nhấp nháy và mất vùng an toàn 6 m.
+- **Bóng Mực** đuổi Mây (phát hiện 12 m), và khi lang thang sẽ tìm đèn yếu để **hút dầu** (5/giây). Tỏa Sáng làm choáng chúng.
+- **Sức chứa** tăng theo số lần thắp trong Đêm: `10 + 2 × lần thắp`, tối đa 20.
+- Vẫn còn từ Phase 2: Gió Lạc cướp đom đóm, Bùa Gió, gió mạnh Đêm 3, lướt, rơi khỏi đảo.
+- **Điểm:** +5 mỗi đom đóm nạp/châm, +100 thắp lần đầu, +40 thắp lại, +5 mỗi Bóng Mực trúng Tỏa Sáng (+15 nếu nó đang hút dầu). Khi thắng: +50 + floor(dầu) cho mỗi đèn đang sáng, +50 mỗi lửa. Tổng điểm là tổng các Đêm đã thắng.
 
-Tuning đầy đủ có trong [game.contract.json](game.contract.json). Giả định cho chỗ ticket chưa nói: [docs/notes/phase-2.md](docs/notes/phase-2.md) (Phase 1: [phase-1.md](docs/notes/phase-1.md)).
+Tuning đầy đủ có trong [game.contract.json](game.contract.json). Giả định cho chỗ ticket chưa nói: [phase-3.md](docs/notes/phase-3.md), [phase-2.md](docs/notes/phase-2.md), [phase-1.md](docs/notes/phase-1.md). Thay đổi phá vỡ tương thích: [CHANGELOG.md](CHANGELOG.md).
 
 ## Kiểm chứng
 
-- `npm test`: 80 test. Gồm unit test cho luật và bản đồ, 22 scenario headless chạy qua CLI thật (mỗi scenario 2 lần để so từng byte), kiểm tra định dạng v1.1, mã thoát 2, và hiệu năng (trọn một đêm 21 600 tick ≤ 30 s; thực tế < 0,5 s).
-- `npm run proof -- phase-2`: sinh [docs/proof/phase-2/RESULTS.md](docs/proof/phase-2/RESULTS.md) và output `.jsonl`. Bằng chứng Phase 1 nằm ở `docs/proof/phase-1/` (khớp tag `phase-1`).
+- `npm test`: 117 test. Gồm unit test cho luật và bản đồ, 31 scenario headless chạy qua CLI thật (mỗi scenario 2 lần để so từng byte), kiểm tra định dạng v1.2, mã thoát 2, và hiệu năng (trọn một đêm 21 600 tick ≤ 30 s; thực tế < 0,5 s).
+- `npm run proof -- phase-3`: sinh [docs/proof/phase-3/RESULTS.md](docs/proof/phase-3/RESULTS.md) và output `.jsonl`. Bằng chứng các phase trước nằm ở `docs/proof/phase-1/` và `phase-2/` (khớp tag tương ứng).
 - CI (GitHub Actions) chạy test, proof và build trên Ubuntu và macOS mỗi lần push.
 - Ảnh chơi thật và FPS (144 FPS @1280×720, `?fps` để bật bộ đếm): [docs/proof/phase-2/screens/](docs/proof/phase-2/screens/).
 
