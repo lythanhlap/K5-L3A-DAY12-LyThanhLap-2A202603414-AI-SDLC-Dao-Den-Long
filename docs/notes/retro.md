@@ -12,7 +12,7 @@ Viết khi kết thúc Phase 4 (2026-11-20). Công cụ: Claude Code (desktop), 
 | Lỗi thật do test/review bắt | 0 | 2 do test/trình duyệt (biên vùng an toàn; tạm dừng không tiếp tục được) + 3 do review (recoil 59 bước, gió 299 tick, Tỏa Sáng xóa trạng thái đẩy) | 1 (`drain` vẫn hút khi bị đẩy) | 1 (soak: bộ nhớ chưa đạt, đã phân tích) |
 
 - Toàn repo có 41 commit nhỏ (`git log --oneline | wc -l`, đếm lúc viết retro).
-- Bench thật: 157.2 FPS trung bình, p1 low 87.1, load 2.8 s.
+- Bench thật: 114.1 FPS trung bình, p1 low 47.3, load 3.9 s (trước khi thêm hiệu ứng đèn: 157.2 / 87.1).
 - Soak: 0 crash, bộ nhớ ×1.30 (chưa đạt ×1.2).
 
 ## Đánh giá từng phase (tóm tắt; chi tiết ở `phase-N.md`)
