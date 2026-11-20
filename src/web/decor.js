@@ -1,4 +1,4 @@
-// Island decoration + ambient effects (visual only: no collision, never read by the sim).
+// Island scenery and ambient effects. Solid scenery shares placement with the simulation.
 // Trees, rocks, rim boulders, grass tufts and flowers are placed with a fixed per-night RNG and kept
 // clear of gameplay spots (lanterns, mote/shade spawn points, start, pads, bridge, ramps, tier edges).
 // Everything heavy is an InstancedMesh, so the whole island costs a handful of draw calls.
@@ -18,10 +18,30 @@ function rng(seed) {
 
 const ISLANDS = { 1: [[0, 0, 40]], 2: [[0, 0, 28], [70, 0, 28]], 3: [[0, 0, 45]] }; // cx, cz, radius
 
+// Cottage sites sit between the fixed objectives, with space around each roof.
+const HOUSE_SITES = {
+  1: [[-25, -9], [17, 21], [5, -27]],
+  2: [[-12, 10], [5, -15], [82, 10], [65, -15]],
+  3: [[-21, -18], [21, -18]],
+};
+
+// Night-2 jump pads launch toward the other island (~34 m); nothing solid may sit under the arc.
+const PAD_FLIGHTS = [[[20, 18], [51.6, 6.6]], [[50, -18], [18.4, -6.6]]];
+function segDist(x, z, [ax, az], [bx, bz]) {
+  const dx = bx - ax;
+  const dz = bz - az;
+  const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz)));
+  return Math.hypot(x - (ax + t * dx), z - (az + t * dz));
+}
+
+function nearHouse(night, x, z, clearance) {
+  return HOUSE_SITES[night].some(([hx, hz]) => Math.hypot(x - hx, z - hz) < 3.4 + clearance);
+}
+
 /** Is (x, z) a good spot for decoration with clearance `r`? Returns ground height or null. */
 function spotOk(map, night, x, z, r) {
   const gh = map.ground(x, z);
-  if (gh == null || map.solid(x, z, gh)) return null;
+  if (gh == null || map.solid(x, z, gh) || nearHouse(night, x, z, r * 1.5)) return null;
   // the whole footprint must be on the same flat level (no hanging over tier edges / island rim)
   for (let k = 0; k < 6; k++) {
     const a = (k / 6) * Math.PI * 2;
@@ -34,6 +54,7 @@ function spotOk(map, night, x, z, r) {
   if (map.pads.some((p) => near(p.pos, 3 + r))) return null;
   if (map.charms.some((p) => near(p, 2.5 + r))) return null;
   if (night === 2 && x > 22 && x < 48 && Math.abs(z) < 5) return null; // bridge approaches
+  if (night === 2 && PAD_FLIGHTS.some(([a, b]) => segDist(x, z, a, b) < 3 + r)) return null; // keep jump-pad arcs clear
   if (night === 3) {
     const rr = Math.hypot(x, z);
     if (rr < 11) return null; // tower plaza / tier-2 surroundings
@@ -86,6 +107,44 @@ function instanced(geo, mat, items, place) {
 }
 // Lambert (not PBR): decor is matte anyway and this is much cheaper per pixel with several point lights
 const mat = (color, extra = {}) => new THREE.MeshLambertMaterial({ color, flatShading: true, ...extra });
+
+function cottages(map, night, obstacles) {
+  const group = new THREE.Group();
+  group.name = 'cottages';
+  const houses = HOUSE_SITES[night].map(([x, z]) => {
+    const [cx, cz] = map.centers.reduce((best, center) =>
+      Math.hypot(x - center[0], z - center[1]) < Math.hypot(x - best[0], z - best[1]) ? center : best);
+    return { x, z, y: map.ground(x, z), angle: Math.atan2(cx - x, cz - z) };
+  });
+  for (const { x, y, z, angle } of houses) {
+    obstacles.push({ x, y, z, cos: Math.cos(angle), sin: Math.sin(angle),
+      halfWidth: 2.55, halfDepth: 2.05, eaves: 2.65, rise: 1.75 });
+  }
+  // Local +Z faces the island centre. Batch identical parts across all cottages.
+  function part(geometry, material, offsets) {
+    const instances = houses.flatMap((house) => offsets.map((offset) => ({ house, offset })));
+    group.add(instanced(geometry, material, instances, ({ house, offset: [dx, dy, dz] }) => {
+      const c = Math.cos(house.angle), s = Math.sin(house.angle);
+      return { pos: [house.x + c * dx + s * dz, house.y + dy, house.z - s * dx + c * dz],
+        rot: [0, house.angle, 0] };
+    }));
+  }
+
+  const timber = mat(PAL.wood);
+  part(new THREE.BoxGeometry(4.3, 0.35, 3.3), mat('#655d61'), [[0, 0.175, 0]]);
+  part(new THREE.BoxGeometry(4, 2.3, 3), mat('#c09a70'), [[0, 1.5, 0]]);
+  const roof = new THREE.ConeGeometry(Math.SQRT2, 1.75, 4);
+  roof.rotateY(Math.PI / 4);
+  roof.scale(2.55, 1, 2.05);
+  part(roof, mat(['#974e43', '#a1814d', '#516884'][night - 1]), [[0, 3.525, 0]]);
+  part(new THREE.BoxGeometry(0.9, 1.85, 0.12), timber, [[0, 1.275, 1.52]]);
+  const windows = [[-1.27, 1.6, 1.53], [1.27, 1.6, 1.53]];
+  part(new THREE.BoxGeometry(0.85, 0.9, 0.12), timber, windows);
+  const glass = mat('#ffdc9e', { emissive: '#ffb457', emissiveIntensity: 0.65 });
+  part(new THREE.BoxGeometry(0.65, 0.68, 0.05), glass, windows.map(([x, y, z]) => [x, y, z + 0.08]));
+  part(new THREE.BoxGeometry(0.08, 0.7, 0.04), timber, windows.map(([x, y, z]) => [x, y, z + 0.11]));
+  return group;
+}
 
 function pines(items, rnd) {
   const g = new THREE.Group();
@@ -157,7 +216,7 @@ function grassAndFlowers(map, night, rnd) {
       const x = cx + rad * Math.cos(a);
       const z = cz + rad * Math.sin(a);
       const gh = map.ground(x, z);
-      if (gh == null || map.solid(x, z, gh)) continue;
+      if (gh == null || map.solid(x, z, gh) || nearHouse(night, x, z, 0)) continue;
       const it = { x, y: gh, z, s: 0.6 + rnd() * 0.8, rot: rnd() * 6 };
       if (rnd() < 0.12) flowers.push({ ...it, c: rnd() });
       else tufts.push(it);
@@ -181,18 +240,28 @@ export function buildDecor(night) {
   const map = NIGHTS[night];
   const rnd = rng(1000 + night * 77);
   const g = new THREE.Group();
+  const obstacles = [];
+  g.add(cottages(map, night, obstacles));
   const treeSpots = scatter(map, night, rnd, night === 3 ? 22 : 14, 1.6, { ring: [0.45, 0.93] });
   g.add(night === 2 ? arecaPalms(treeSpots) : pines(treeSpots, rnd));
-  g.add(bushes(scatter(map, night, rnd, 12, 1.0, { ring: [0.3, 0.95] })));
+  const bushSpots = scatter(map, night, rnd, 12, 1.0, { ring: [0.3, 0.95] });
+  g.add(bushes(bushSpots));
+  for (const { x, y, z, s } of treeSpots) {
+    const palm = night === 2;
+    obstacles.push({ x, y, z, radius: (palm ? 0.32 : 0.24) * s, height: (palm ? 5 : 4.5) * s });
+  }
+  for (const { x, y, z, s } of bushSpots) {
+    obstacles.push({ x, y, z, radius: 0.9 * s, height: 1.05 * s });
+  }
   g.add(rocks(scatter(map, night, rnd, 14, 0.9, { ring: [0.2, 0.95] })));
   if (night === 3) g.add(stonePillars(scatter(map, night, rnd, 8, 0.8, { ring: [0.3, 0.75] })));
   g.add(rimBoulders(night, rnd));
   g.add(grassAndFlowers(map, night, rnd));
-  return g;
+  return { group: g, obstacles };
 }
 
 // ---------------------------------------------------------------- ambient effects
-const softTex = (() => {
+function createSoftTexture() {
   const c = document.createElement('canvas');
   c.width = c.height = 64;
   const x = c.getContext('2d');
@@ -202,10 +271,11 @@ const softTex = (() => {
   x.fillStyle = gr;
   x.fillRect(0, 0, 64, 64);
   return new THREE.CanvasTexture(c);
-})();
+}
 
 /** Low drifting mist wisps over the island + pink petals floating around the player. */
 export function createAmbient(scene) {
+  const softTex = createSoftTexture();
   const MIST = 24; // big soft sprites are fill-rate heavy: measured 140 -> 114 FPS with 46 x size 9, so keep it small
   const mistGeo = new THREE.BufferGeometry();
   mistGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(MIST * 3), 3));

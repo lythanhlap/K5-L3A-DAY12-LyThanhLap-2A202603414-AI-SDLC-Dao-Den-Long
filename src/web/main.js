@@ -8,7 +8,9 @@ import { makePlayer, animatePlayer } from './character.js';
 import { buildWorld } from './world.js';
 import { buildDecor, createAmbient } from './decor.js';
 import { PAL, ambientFor } from './palette.js';
-import { initAudio, setVolume, sfx } from './audio.js';
+import { createDancingCow } from './dancing-cow.js';
+import { createWeather } from './weather.js';
+import { initAudio, setRain, setVolume, sfx } from './audio.js';
 import { createBackdrop } from './backdrop.js';
 
 const $ = (id) => document.getElementById(id);
@@ -20,7 +22,7 @@ const SETTINGS_KEY = 'ddl-settings';
 const DEFAULT_KEYS = { up: 'KeyW', down: 'KeyS', left: 'KeyA', right: 'KeyD', jump: 'Space', dash: 'ShiftLeft', interact: 'KeyE', pulse: 'KeyF', pause: 'Escape' };
 const KEY_LABELS = { up: 'Đi lên', down: 'Đi xuống', left: 'Sang trái', right: 'Sang phải', jump: 'Nhảy', dash: 'Lướt', interact: 'Tương tác (nạp / châm dầu)', pulse: 'Tỏa sáng', pause: 'Tạm dừng' };
 const RESERVED = { ArrowLeft: 'xoay camera trái', ArrowRight: 'xoay camera phải', F3: 'bộ đếm FPS' };
-const settings = { volume: 0.6, sens: 0.5, gamma: 1, colorblind: false, captions: true, reduceMotion: false, largeText: false, followCam: true, assist: false, keys: { ...DEFAULT_KEYS } };
+const settings = { volume: 0.6, sens: 0.5, gamma: 1, colorblind: false, captions: true, reduceMotion: false, largeText: false, followCam: true, assist: false, solidScenery: false, keys: { ...DEFAULT_KEYS } };
 try {
   const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
   Object.assign(settings, saved, { keys: { ...DEFAULT_KEYS, ...(saved.keys || {}) } });
@@ -66,7 +68,7 @@ function applyAccessibility() {
   document.documentElement.classList.toggle('large', settings.largeText);
   $('captions').classList.toggle('hidden', !settings.captions);
 }
-for (const [id, key] of [['set-captions', 'captions'], ['set-motion', 'reduceMotion'], ['set-large', 'largeText'], ['set-follow', 'followCam'], ['set-assist', 'assist']]) {
+for (const [id, key] of [['set-captions', 'captions'], ['set-motion', 'reduceMotion'], ['set-large', 'largeText'], ['set-follow', 'followCam'], ['set-assist', 'assist'], ['set-solid', 'solidScenery']]) {
   $(id).checked = settings[key];
   $(id).addEventListener('change', (e) => {
     settings[key] = e.target.checked;
@@ -143,7 +145,13 @@ moon.position.set(-30, 50, -20);
 scene.add(moon);
 
 const IS_BENCH = new URLSearchParams(location.search).has('bench'); // creative extras are off in the bench scene
+const cow = IS_BENCH ? null : createDancingCow();
+if (cow) scene.add(cow.stage);
 const backdrop = IS_BENCH ? { update() {} } : createBackdrop(scene);
+const weather = IS_BENCH ? null : createWeather(scene, moon, () => {
+  sfx.thunder();
+  addCaption('Tiếng sấm từ xa');
+});
 const ambient = IS_BENCH ? { update() {} } : createAmbient(scene);
 const playerMesh = makePlayer();
 window.__render = { playerMesh, camera, get camYaw() { return camYaw; } }; // debug/verification hook (read-only use)
@@ -378,6 +386,8 @@ let totalScore = 0;
 let nightsWon = 0;
 const BENCH = params.has('bench');
 let game = null;
+let strideDistance = 0;
+let nextBumpTick = 0;
 let world = null;
 const baseSeed = params.get('seed') != null ? Number(params.get('seed')) : BENCH ? 42 : Date.now() & 0x7fffffff;
 const lanternMeshes = new Map();
@@ -398,11 +408,17 @@ function clearMap(map) {
 
 function loadNight(n, prebuilt = null) {
   night = n;
-  game = prebuilt || createGame({ seed: baseSeed + n, night: n, assist: settings.assist }); // easy mode applies from the next night load
+  weather?.reset();
+  cow?.place(n, NIGHTS[n]);
+  cow?.pose(0);
+  strideDistance = 0;
+  nextBumpTick = 0;
+  const decor = IS_BENCH ? null : buildDecor(n);
+  game = prebuilt || createGame({ seed: baseSeed + n, night: n, assist: settings.assist, obstacles: settings.solidScenery ? decor?.obstacles : [] }); // solid scenery is opt-in: default = Ticket-02 standard map // easy mode applies from the next night load
   window.__game = game;
   if (world) scene.remove(world);
   world = buildWorld(n);
-  if (!IS_BENCH) world.add(buildDecor(n)); // trees, rocks, grass, flowers (visual only)
+  if (decor) world.add(decor.group);
   scene.add(world);
   for (const m of [moteMeshes, shadeMeshes, lanternMeshes, drifterMeshes, charmMeshes]) clearMap(m);
   for (const l of game.lanterns) {
@@ -591,12 +607,50 @@ function mountSaveForm(screenId) {
   });
 }
 
+function stepPlaying(input) {
+  const p = game.player;
+  const grounded = p.grounded;
+  const launching = !!p.launch;
+  const dashing = p.dashTicks > 0;
+  const respawning = p.respawn > 0;
+  const jumpPressed = input.jump && !game.prev.jump;
+  const blocked = p.blocked;
+  handleEvents(step(game, input));
+  if (phase !== 'playing' || game.paused || respawning || p.respawn > 0) {
+    strideDistance = 0;
+    return;
+  }
+
+  if (!launching && p.launch) sfx.launch();
+  else if (grounded && !p.grounded && jumpPressed) sfx.jump();
+  else if (!grounded && p.grounded) sfx.land();
+
+  if (p.blocked && !blocked && game.simTick >= nextBumpTick) {
+    sfx.bump();
+    nextBumpTick = game.simTick + 15;
+  }
+  if (!grounded || !p.grounded || dashing || p.dashTicks > 0 || !input.move.some(Boolean)) {
+    strideDistance = 0;
+    return;
+  }
+  strideDistance += Math.hypot(p.vel[0], p.vel[2]) / TICK_RATE;
+  if (strideDistance >= 1.8) {
+    const [x, , z] = p.pos;
+    const onBridge = night === 2 && x >= 26 && x <= 44 && Math.abs(z) <= 2;
+    sfx.footstep(onBridge);
+    strideDistance -= 1.8;
+  }
+}
+
 let lastSecond = null;
 function handleEvents(events) {
   for (const e of events) {
     switch (e.name) {
       case 'mote_picked':
         sfx.pickup();
+        break;
+      case 'refuel':
+        sfx.refuel();
         break;
       case 'deposit':
         sfx.deposit();
@@ -981,6 +1035,10 @@ function finishBench() {
   $('fps').textContent = `BENCH done: ${N} frames, avg ${window.__benchResult.avg_fps.toFixed(1)} FPS`;
 }
 
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) setRain(0);
+});
+
 function frame(now) {
   const dt = Math.min(0.1, (now - last) / 1000);
   last = now;
@@ -996,7 +1054,7 @@ function frame(now) {
     if (pauseQueued) acc = Math.max(acc, DT);
     while (acc >= DT && (phase === 'playing' || pauseQueued)) {
       rememberPositions();
-      handleEvents(step(game, sampleInput()));
+      stepPlaying(sampleInput());
       acc -= DT;
     }
     alpha = phase === 'playing' ? Math.min(1, acc / DT) : 1;
@@ -1008,6 +1066,10 @@ function frame(now) {
     const pp = lerpPos('player', game.player.pos);
     backdrop.update(now / 1000, pp, night);
     ambient.update(now / 1000, pp, night, settings.reduceMotion);
+    const playing = phase === 'playing' && !document.hidden;
+    cow?.pose(settings.reduceMotion ? 0 : game.simTick / TICK_RATE);
+    weather?.update(dt, pp, camYaw, night, playing, settings.reduceMotion);
+    setRain(playing ? 0.5 + night / 6 : 0);
   }
   if (pulseFx > 0) pulseFx = Math.max(0, pulseFx - dt / 0.35);
   if (game) {

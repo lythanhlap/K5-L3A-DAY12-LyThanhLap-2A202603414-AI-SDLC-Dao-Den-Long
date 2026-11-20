@@ -37,7 +37,7 @@ export function setVolume(v) {
 }
 
 function tone(freq, dur, { type = 'sine', gain = 0.25, slide = 0, delay = 0 } = {}) {
-  if (!ctx) return;
+  if (!ctx || volume === 0) return;
   const t = ctx.currentTime + delay;
   const o = ctx.createOscillator();
   const g = ctx.createGain();
@@ -52,7 +52,7 @@ function tone(freq, dur, { type = 'sine', gain = 0.25, slide = 0, delay = 0 } = 
 }
 
 function noise(dur, { gain = 0.2, freq = 800 } = {}) {
-  if (!ctx) return;
+  if (!ctx || volume === 0) return;
   const buf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * dur), ctx.sampleRate);
   const d = buf.getChannelData(0);
   for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
@@ -67,7 +67,49 @@ function noise(dur, { gain = 0.2, freq = 800 } = {}) {
   src.start();
 }
 
+let rainGain = null;
+let rainLevel = 0;
+
+export function setRain(level) {
+  if (!ctx || rainLevel === level) return;
+  if (!rainGain) {
+    const buffer = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+    const samples = buffer.getChannelData(0);
+    for (let i = 0; i < samples.length; i++) samples[i] = Math.random() * 2 - 1;
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.loop = true;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 2100;
+    rainGain = ctx.createGain();
+    rainGain.gain.value = 0;
+    source.connect(filter).connect(rainGain).connect(master);
+    source.start();
+  }
+  rainLevel = level;
+  rainGain.gain.setTargetAtTime(level * 0.105, ctx.currentTime, 0.12);
+}
+
 export const sfx = {
+  thunder: () => {
+    noise(1.8, { gain: 0.85, freq: 180 });
+    tone(85, 1.35, { type: 'triangle', gain: 0.19, slide: -45 });
+  },
+  footstep: (wood) => {
+    if (wood) tone(185, 0.075, { type: 'triangle', gain: 0.11, slide: -90 });
+    noise(wood ? 0.035 : 0.09, { gain: wood ? 0.07 : 0.13, freq: wood ? 1500 : 750 });
+  },
+  land: () => {
+    tone(140, 0.13, { type: 'triangle', slide: -85, gain: 0.17 });
+    noise(0.11, { freq: 620, gain: 0.16 });
+  },
+  bump: () => tone(190, 0.095, { type: 'triangle', gain: 0.14, slide: -110 }),
+  launch: () => {
+    noise(0.22, { freq: 1300, gain: 0.18 });
+    tone(260, 0.32, { type: 'triangle', slide: 620, gain: 0.13 });
+  },
+  refuel: () => [440, 660].forEach((f, i) => tone(f, 0.22, { gain: 0.12, delay: i * 0.09 })),
   pickup: () => tone(1320, 0.12, { gain: 0.15, slide: 400 }),
   deposit: () => tone(660, 0.15, { gain: 0.15 }),
   lit: () => [523, 659, 784].forEach((f, i) => tone(f, 0.6, { gain: 0.15, delay: i * 0.08 })),
