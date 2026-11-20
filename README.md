@@ -109,7 +109,7 @@ Nhật ký dùng AI và token: [ai-log](docs/notes/ai-log.md), [retro](docs/note
 
 ## Sáng tạo của tôi
 
-- **Mây là chiến binh gấu trúc** ([character.js](src/web/character.js)). Áo `#E8E2D0`, khăn `#C8102E` theo bảng màu chuẩn; có giáp vai đồng, đai đỏ, dây chéo, kiếm trong vỏ (chỉ trang trí) và đèn lồng nhỏ ở đai, sáng dần theo số đom đóm mang theo. Mẫu xem ở `/character.html`. Lệch PRD-0 vì không đội nón lá, đó là quyết định của chủ dự án (giả định 16, [phase-1.md](docs/notes/phase-1.md)).
+- **Mây là chiến binh gấu trúc đội nón lá** ([character.js](src/web/character.js)). Đèn lồng nhỏ treo ở vành nón như PRD-0, sáng dần theo số đom đóm mang theo. Áo `#E8E2D0`, khăn và quai nón `#C8102E` theo bảng màu chuẩn; có giáp vai đồng, dây chéo, kiếm trong vỏ (chỉ trang trí). Xem mẫu ở `/character.html`.
 - **Bối cảnh đêm** ([backdrop.js](src/web/backdrop.js)): vòm trời chuyển màu, 1 400 ngôi sao, trăng có quầng, biển mây trôi, 10 đảo nổi có đèn lồng. Tắt trong cảnh benchmark.
 - **Chuyển động mượt:** nội suy hình ảnh giữa các tick 60 Hz. Đo được 0 khung giật ở 144 Hz, trước đó 58%.
 - **Thanh gamma** trong Cài đặt.

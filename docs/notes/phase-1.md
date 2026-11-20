@@ -72,3 +72,5 @@ Nguồn: tab Phase 1 trên lab board (PRD-0 + Test Contract v1.0).
 - Hiệu năng: trọn một đêm 300 s (18.000 tick) chạy headless mất khoảng 0,25 s (Windows 11, Node 22.12).
 - Chưa làm: `dash`; âm thanh; rơi khỏi đảo (chủ đích, `fall_enabled: false`).
 - Rủi ro với test ẩn: các giả định 1, 4, 6, 8 (ánh sáng = đom đóm mang theo; vùng an toàn chỉ ở đèn đã thắp; thưởng chỉ khi thắng; thời điểm bộ đếm). Nếu Phase 2 làm rõ khác đi thì sửa và ghi lý do ở đây.
+
+> **Cập nhật (Phase 4):** giả định 16 đã được **thay**. Chủ dự án yêu cầu nhân vật phải có nón, nên Mây đội lại nón lá và đèn lồng nhỏ treo ở vành nón, đúng câu chữ PRD-0. Ảnh: [front](../proof/phase-4/screens/08-may-non-la-front.png), [back](../proof/phase-4/screens/09-may-non-la-back.png), [trong game](../proof/phase-4/screens/10-may-non-la-ingame.jpg).

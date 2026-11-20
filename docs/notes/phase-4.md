@@ -126,3 +126,9 @@ Các lần thử chạy trước khi commit `d4e0cd0` nhưng cùng mã bench. Ch
   | Đo lại ngay sau đó, cùng mã | 136.9 | 70.3 | 2991 |
 
   Trước thay đổi là 157.2 / 87.1. Hiệu ứng mới tốn khoảng 15–25% FPS ở cảnh bench (3 đèn sáng, 200 Bóng Mực). Vẫn đạt ngưỡng ≥ 60 / ≥ 30 trên máy này, nhưng biên an toàn của `p1_low_fps` đã nhỏ hơn. `bench.json` là lần chính thức.
+
+## Cập nhật: Mây đội lại nón lá (yêu cầu của người dùng)
+
+- Nón lá gồm thân nón màu rơm, viền vành, 8 gân nón và quai đỏ. Đèn lồng nhỏ treo ở vành nón (trước đây treo ở đai), vẫn sáng dần theo số đom đóm mang theo. Gỡ được lệch PRD-0 ghi ở giả định 16 Phase 1.
+- Lỗi tìm thấy khi kiểm bằng ảnh: gân nón đặt sai dấu góc nghiêng nên chĩa ra ngoài; đã sửa. Trang `character.html` bị trắng khi tải lúc khung xem chưa có kích thước; đã thêm xử lý đổi cỡ.
+- Chỉ đổi `src/web/character.js` (hiển thị), nên `npm test` không đổi.
