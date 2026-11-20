@@ -1,11 +1,11 @@
 # AGENTS.md: Đảo Đèn Lồng
 
 3D third-person game (Three.js + Vite) with a deterministic headless mode graded by **Test Contract v1.3** (3 nights, lantern fuel, bench/soak; see `docs/adr/`).
-Easy mode (`assist`) is web-only and must stay OFF in headless/bench/soak.
+Easy mode (`assist`) and solid scenery (`obstacles`) are web-only, opt-in settings (default OFF = standard map/numbers) and must stay OFF in headless/bench/soak.
 Requirements live on the lab board. Per-phase spec and assumptions live in `docs/notes/phase-N.md`. **Read the latest one first.**
 
 ## Commands
-- Install: `npm ci` · Play: `npm start` (Vite, http://localhost:5173; `?seed=N` fixed world, `?fps` FPS overlay)
+- Install: `npm ci && npm run build` · Play: `npm start` (= `node scripts/serve.mjs`, http://localhost:8080) · Dev: `npm run dev` (Vite :5173) · URL flags `?seed=N`, `?fps`
 - Test (must be green before you stop): `npm test`
 - Headless: `node src/headless.js --seed 1 --night <1|2|3> --ticks 600 --out out/run.jsonl [--scenario f] [--inputs f]`
 - Evidence: `npm run proof -- phase-N` → `docs/proof/phase-N/RESULTS.md` + `runs/*.jsonl`

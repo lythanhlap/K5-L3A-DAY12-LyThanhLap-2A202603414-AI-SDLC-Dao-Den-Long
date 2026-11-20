@@ -136,8 +136,8 @@ Các lần thử chạy trước khi commit `d4e0cd0` nhưng cùng mã bench. Ch
 ## Cập nhật: Chế độ dễ, nhiều đom đóm hơn (yêu cầu của người dùng)
 
 - Số đom đóm 20 / trần 30 / +1 mỗi 240 tick là **số chuẩn bắt buộc** của Ticket-02 và test ẩn chấm theo đó. Vì vậy không đổi luật mặc định. Thay vào đó thêm tùy chọn **"Chế độ dễ"** trong Cài đặt: **mặc định tắt**, được lưu, áp dụng từ Đêm kế tiếp hoặc khi Chơi lại.
-- Khi bật: thêm 25 đom đóm rải quanh các điểm sinh chuẩn (cách 1,5–4 m, trên mặt đất). Cứ 120 tick sinh thêm 2 con, tối đa 60.
-- Đo thật (seed 3, không có Bóng Mực, đứng yên):
+- Bản đầu của Chế độ dễ thêm 25 đom đóm quanh các điểm sinh chuẩn (cách 1,5–4 m, trên mặt đất). Cứ 120 tick sinh thêm 2 con, tối đa 60.
+- Số đo của bản đầu (seed 3, không có Bóng Mực, đứng yên):
 
   | Chế độ | Lúc bắt đầu | Sau 20 s |
   |---|---|---|
@@ -147,13 +147,15 @@ Các lần thử chạy trước khi commit `d4e0cd0` nhưng cùng mã bench. Ch
   Kết quả giống nhau ở cả 3 đêm.
 - Headless, bench và soak không truyền `assist` nên output không đổi: `npm test` 124/124, 31/31 scenario cũ vẫn đạt. Có test mới kiểm cả hai chế độ. Ảnh: [11](../proof/phase-4/screens/11-easy-mode-45-motes.jpg).
 - Điểm đạt được ở chế độ dễ vẫn vào bảng xếp hạng như thường. Contract không có trường đánh dấu chế độ nên mình không thêm.
+- Theo yêu cầu tăng thêm đom đóm, Chế độ dễ hiện bắt đầu với **70 con**, sinh thêm **3 con mỗi giây**, tối đa **100 con**. Kiểm tra trên cả ba đảo với nhà và cây, dùng các seed 1, 3, 7, 42 và cho Mây đứng yên: có 73 con sau 1 giây, 100 con sau 10 và 20 giây.
 
 ## Cập nhật: trang trí bản đồ và hiệu ứng (yêu cầu của người dùng, chỉ đổi `src/web/`)
 
 - **`src/web/decor.js`:**
   - Đêm 1 có cây thông, Đêm 2 "Đảo Cau" có cây cau (lá xòe, chùm quả), Đêm 3 có thông và trụ đá thạch đăng.
   - Thêm bụi cây, đá, đá bám dọc mép đảo, khoảng 2 000 bụi cỏ và hoa nhỏ (hồng, trắng, tím).
-  - Vị trí cố định theo từng đêm và **tránh xa** đèn, điểm sinh đom đóm, điểm xuất phát, bục nhảy, Bùa Gió, đầu cầu, dốc và mép tầng. Không có va chạm: sim không đọc decor.
+  - Vị trí cố định theo từng đêm và **tránh xa** đèn, điểm sinh đom đóm, điểm xuất phát, bục nhảy, Bùa Gió, đầu cầu, dốc và mép tầng.
+  - Theo yêu cầu bổ sung, bản chơi web dùng vị trí dựng nhà, thân cây và bụi cây để tính va chạm cho Mây. Đi bộ, lướt, nhảy và gió đẩy đều dùng cùng phép kiểm tra. Mây có thể đáp lên mái nhà hoặc nhảy qua bụi thấp. Headless, bench và soak dùng bản đồ chuẩn của contract.
   - Dùng `InstancedMesh` với vật liệu Lambert.
 - **Hiệu ứng:**
   - Sương trôi thấp quanh đảo.
@@ -173,3 +175,19 @@ Các lần thử chạy trước khi commit `d4e0cd0` nhưng cùng mã bench. Ch
   Thủ phạm là các hạt sương lớn (fill-rate). Đã giảm còn 24 hạt cỡ 5: Đêm 1 đạt 107–130 (trung bình 121), Đêm 2 khoảng 112, Đêm 3 102–108. Vẫn trên 60 FPS nhưng thấp hơn mức 144 trước đây.
 - **Lỗi tìm thấy khi kiểm:** phụ đề "10 giây cuối!" của đêm trước còn hiện sang đêm sau. Đã sửa: xóa phụ đề và cờ cảnh báo khi tải đêm.
 - Ảnh: [12 Đêm 1](../proof/phase-4/screens/12-decor-night1-pines-rocks-grass.jpg), [13 Đêm 2](../proof/phase-4/screens/13-decor-night2-areca-palms.jpg), [14 Đêm 3](../proof/phase-4/screens/14-decor-night3-pines-stone-lanterns-mist.jpg).
+
+## Hoàn thiện trước khi nộp (sau review `/code-review`)
+
+Thay đổi từ phiên làm việc khác (nhà nhỏ có va chạm, mưa và sấm, âm thanh bước chân/đáp đất/va, con bò trên sân khấu, chế độ dễ 70/100) được giữ lại, kèm các chỉnh sửa để không phá chuẩn:
+
+| Vấn đề từ review | Xử lý |
+|---|---|
+| Nhà, cây, bụi chắn đường làm bản đồ chơi khác bản đồ chuẩn (Ticket-02 Phần 2) | Thành tùy chọn **"Nhà, cây, bụi chắn đường", mặc định tắt**. Mặc định đúng bản đồ chuẩn; headless, bench, soak không bao giờ bật |
+| Cây/bụi có thể chắn đường bay bục nhảy Đêm 2 | Decor tránh đường bay (khoảng cách đến đoạn bay ≥ 3 m). Test mới: bật va chạm, cả 2 bục vẫn đáp xuống đảo kia, không rơi |
+| Sân khấu con bò che điểm xuất phát Đêm 1, lơ lửng ngoài cầu cạnh Bùa Gió ở Đêm 2, đè tầng 2 Đêm 3 | Dời đến (−9, 4) / (−7, 4) / (−12, −30), kiểm bằng script: cách đèn ≥ 9 m, điểm sinh đom đóm ≥ 4,5 m, xuất phát khoảng 10 m về một bên, xa cầu, Bùa Gió, bục nhảy, nhà |
+| Chế độ dễ 100 đom đóm chưa đo FPS | Đo thật ở 1280×720, tab phía trước: **83–110 FPS** với 100 đom đóm, nhà, mưa, con bò. Ảnh [15](../proof/phase-4/screens/15-easy-mode-cottage-cow-rain.jpg) |
+| AGENTS.md ghi sai lệnh chơi | Sửa: `npm start` = `serve.mjs` :8080; `npm run dev` = Vite |
+| CREDITS còn TODO nguồn ảnh tham chiếu | Ghi trung thực: ảnh do chủ dự án cung cấp, **chưa xác minh giấy phép**, không commit vào repo và không có trong game |
+| bench.json đo trước khi thêm nón lá | Chạy lại bench và soak chính thức trên commit cuối (xem log trong `docs/proof/phase-4/`) |
+
+- **Va chạm chưa hoàn thiện:** chỉ chặn Mây. Bóng Mực và Gió Lạc vẫn bay xuyên nhà và cây (khi bật tùy chọn).
