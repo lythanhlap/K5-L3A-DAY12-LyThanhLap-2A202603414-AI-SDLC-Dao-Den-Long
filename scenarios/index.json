@@ -1,0 +1,89 @@
+[
+  {
+    "name": "walk", "ac": "AC1", "seed": 1, "ticks": 180,
+    "why": "6 m/s forward; cam_yaw 90 turns forward into +X; [1,1] normalized",
+    "expect": [
+      { "snapshot": 60, "path": "player.pos", "equals": [0, 0, 6] },
+      { "snapshot": 120, "path": "player.pos", "equals": [6, 0, 6] },
+      { "snapshot": 180, "path": "player.pos", "equals": [10.243, 0, 10.243] },
+      { "snapshot": 60, "path": "time_left_s", "equals": 299 }
+    ]
+  },
+  {
+    "name": "pickup_light", "ac": "AC2 AC3", "seed": 1, "ticks": 120,
+    "why": "walk over a mote (pickup <= 1 m), stop near L1 (4/5), interact lights it",
+    "expect": [
+      { "event": "mote_picked", "data": { "carried": 1 } },
+      { "event": "deposit", "data": { "lantern_id": "L1", "amount": 1, "deposited": 5 }, "tick": 91 },
+      { "event": "lantern_lit", "data": { "lantern_id": "L1" }, "tick": 91 },
+      { "end": { "state": "playing", "score": 110 } }
+    ]
+  },
+  {
+    "name": "pulse_stun", "ac": "AC4", "seed": 1, "ticks": 180,
+    "why": "pulse costs 1, stuns + pushes S1 4 m; second press during cooldown does nothing; stun lasts 2 s",
+    "expect": [
+      { "event": "pulse", "data": { "stunned_ids": ["S1"] }, "tick": 1 },
+      { "count": "pulse", "equals": 1 },
+      { "snapshot": 10, "path": "player.carried", "equals": 1 },
+      { "snapshot": 10, "path": "shades.0.state", "equals": "stunned" },
+      { "snapshot": 10, "path": "shades.0.pos", "equals": [7.942, 1, 0] },
+      { "snapshot": 110, "path": "shades.0.pos", "equals": [7.942, 1, 0] },
+      { "snapshot": 130, "path": "shades.0.state", "equals": "chase" },
+      { "end": { "score": 20 } }
+    ]
+  },
+  {
+    "name": "hit_drop", "ac": "AC5", "seed": 1, "ticks": 100,
+    "why": "shade touching player: -1 flame, drop floor(carried*0.5), then 1.5 s invulnerability",
+    "expect": [
+      { "event": "player_hit", "data": { "by": "shade", "flames": 2, "dropped": 2 }, "tick": 1 },
+      { "event": "player_hit", "data": { "by": "shade", "flames": 1, "dropped": 1 }, "tick": 91 },
+      { "count": "player_hit", "equals": 2 }
+    ]
+  },
+  {
+    "name": "win", "ac": "AC6", "seed": 1, "ticks": 100,
+    "why": "4 pre-lit lanterns (no score), last deposit lights L5 -> won; 100 + floor(299.983) + 3*50",
+    "expect": [
+      { "event": "lantern_lit", "data": { "lantern_id": "L5" }, "tick": 1 },
+      { "event": "game_over", "data": { "result": "won", "reason": "all_lit" }, "tick": 1 },
+      { "end": { "ticks": 1, "state": "won", "score": 549 } }
+    ]
+  },
+  {
+    "name": "dawn", "ac": "AC7", "seed": 1, "ticks": 120,
+    "why": "time_left_s 1 -> dawn after 60 steps",
+    "expect": [
+      { "event": "game_over", "data": { "result": "lost", "reason": "dawn" }, "tick": 60 },
+      { "end": { "ticks": 60, "state": "lost", "score": 0 } }
+    ]
+  },
+  {
+    "name": "no_flames", "ac": "AC7", "seed": 1, "ticks": 60,
+    "why": "last flame lost on first touch; shade without id gets S1",
+    "expect": [
+      { "event": "player_hit", "data": { "by": "shade", "flames": 0, "dropped": 0 }, "tick": 1 },
+      { "event": "game_over", "data": { "result": "lost", "reason": "no_flames" }, "tick": 1 },
+      { "snapshot": 0, "path": "shades.0.id", "equals": "S1" },
+      { "end": { "ticks": 1, "state": "lost" } }
+    ]
+  },
+  {
+    "name": "safe_zone", "ac": "AC8", "seed": 1, "ticks": 600,
+    "why": "player stands at lit L1; shade stops outside safe_radius and never hits",
+    "expect": [
+      { "min_dist": { "shade": "S1", "lantern": "L1" }, "gt": 5 },
+      { "count": "player_hit", "equals": 0 },
+      { "end": { "state": "playing" } }
+    ]
+  },
+  {
+    "name": "random_seed42", "ac": "AC9", "seed": 42, "ticks": 1200, "scenario": false, "inputs": false,
+    "why": "default night with random motes/shades, player idle; checked for determinism",
+    "expect": [
+      { "snapshot": 0, "path": "motes_active", "equals": 30 },
+      { "snapshot": 0, "path": "shades.length", "equals": 3 }
+    ]
+  }
+]
