@@ -91,3 +91,9 @@ Các lần thử chạy trước khi commit `d4e0cd0` nhưng cùng mã bench. Ch
 
 - `npm test`: 123/123. Thêm 6 test Phase 4: bảng xếp hạng, lệnh export, cảnh bench, định dạng soak.
 - Hồi quy: mọi scenario Phase 1–3 vẫn đạt (`npm run proof -- phase-4`).
+
+## Kiểm tra cài đặt sạch (thật)
+
+- **Clone sạch** sang thư mục tạm, chạy `npm ci && npm run build` (11 s, đã có cache Chrome của Puppeteer), rồi `node scripts/serve.mjs`: trang trả HTTP 200.
+- `npm test` trong bản clone lần đầu **đỏ 2 test**: test Phase 4 tự ghép đường dẫn bằng `URL.pathname`, nên dấu cách trong "PC ACER" thành `%20`. Đã sửa bằng `fileURLToPath`; bản clone giờ 123/123. Lỗi này chỉ lộ ra khi kiểm tra trên một thư mục sạch.
+- **File zip release** (`release/dao-den-long-v1.0.0-web.zip`, 164 KB): giải nén ra thư mục tạm, chạy `node scripts/serve.mjs`. Kết quả: trang 200, `POST /api/leaderboard` lưu được, `--export-leaderboard` ra đúng `{"entries":[…]}`.
