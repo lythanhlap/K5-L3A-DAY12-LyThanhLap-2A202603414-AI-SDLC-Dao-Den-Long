@@ -4,11 +4,13 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { isValidName, addEntry, sortEntries, exportDoc, isoWithOffset } from '../src/leaderboard.js';
 import { createBenchGame, step } from '../src/sim/game.js';
 
 const tmp = mkdtempSync(join(tmpdir(), 'ddl4-'));
-const ROOT = new URL('..', import.meta.url).pathname.replace(/^\/([A-Z]:)/, '$1');
+// fileURLToPath (not URL.pathname): paths with spaces must not stay percent-encoded (found in a clean clone under "PC ACER")
+const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const e = (name, score, at, extra = {}) => ({ name, score, nights_won: 1, achieved_at: at, seed: 1, ...extra });
 
 test('leaderboard names: 3-12 of [A-Za-z0-9_], Vietnamese letters accepted', () => {
