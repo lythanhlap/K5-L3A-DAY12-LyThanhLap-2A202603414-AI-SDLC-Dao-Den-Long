@@ -19,7 +19,7 @@ const SETTINGS_KEY = 'ddl-settings';
 const DEFAULT_KEYS = { up: 'KeyW', down: 'KeyS', left: 'KeyA', right: 'KeyD', jump: 'Space', dash: 'ShiftLeft', interact: 'KeyE', pulse: 'KeyF', pause: 'Escape' };
 const KEY_LABELS = { up: 'Đi lên', down: 'Đi xuống', left: 'Sang trái', right: 'Sang phải', jump: 'Nhảy', dash: 'Lướt', interact: 'Tương tác (nạp / châm dầu)', pulse: 'Tỏa sáng', pause: 'Tạm dừng' };
 const RESERVED = { ArrowLeft: 'xoay camera trái', ArrowRight: 'xoay camera phải', F3: 'bộ đếm FPS' };
-const settings = { volume: 0.6, sens: 0.5, gamma: 1, colorblind: false, captions: true, reduceMotion: false, largeText: false, followCam: true, keys: { ...DEFAULT_KEYS } };
+const settings = { volume: 0.6, sens: 0.5, gamma: 1, colorblind: false, captions: true, reduceMotion: false, largeText: false, followCam: true, assist: false, keys: { ...DEFAULT_KEYS } };
 try {
   const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
   Object.assign(settings, saved, { keys: { ...DEFAULT_KEYS, ...(saved.keys || {}) } });
@@ -65,7 +65,7 @@ function applyAccessibility() {
   document.documentElement.classList.toggle('large', settings.largeText);
   $('captions').classList.toggle('hidden', !settings.captions);
 }
-for (const [id, key] of [['set-captions', 'captions'], ['set-motion', 'reduceMotion'], ['set-large', 'largeText'], ['set-follow', 'followCam']]) {
+for (const [id, key] of [['set-captions', 'captions'], ['set-motion', 'reduceMotion'], ['set-large', 'largeText'], ['set-follow', 'followCam'], ['set-assist', 'assist']]) {
   $(id).checked = settings[key];
   $(id).addEventListener('change', (e) => {
     settings[key] = e.target.checked;
@@ -395,7 +395,7 @@ function clearMap(map) {
 
 function loadNight(n, prebuilt = null) {
   night = n;
-  game = prebuilt || createGame({ seed: baseSeed + n, night: n });
+  game = prebuilt || createGame({ seed: baseSeed + n, night: n, assist: settings.assist }); // easy mode applies from the next night load
   window.__game = game;
   if (world) scene.remove(world);
   world = buildWorld(n);

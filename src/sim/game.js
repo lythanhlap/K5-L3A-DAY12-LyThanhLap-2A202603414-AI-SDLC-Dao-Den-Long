@@ -41,7 +41,14 @@ export const isWeak = (l) => l.lit && l.fuelU < FUEL_LOW_U;
 export class ScenarioError extends Error {}
 
 // ---------------------------------------------------------------- setup
-export function createGame({ seed = 1, night = 1, scenario = null, bench = false } = {}) {
+/**
+ * Opt-in "easy mode" for the playable game only (Settings → Chế độ dễ). OFF by default and never used
+ * by the headless CLI, so the Ticket-02 standard numbers (20 motes, cap 30, +1 every 240 ticks) and the
+ * hidden tests are unaffected. Extra motes are scattered 1.5-4 m around the standard spawn points.
+ */
+export const ASSIST = Object.freeze({ extraInitial: 25, cap: 60, spawnEvery: 120, spawnBatch: 2 });
+
+export function createGame({ seed = 1, night = 1, scenario = null, bench = false, assist = false } = {}) {
   const map = NIGHTS[night];
   if (!map) throw new ScenarioError(`unknown night ${night}`);
   const T = TUNING;
@@ -49,6 +56,7 @@ export function createGame({ seed = 1, night = 1, scenario = null, bench = false
     night,
     map,
     bench, // Ticket-04 bench scene: no spawns, damage, pickup, fuel decay or night end
+    assist, // easy mode (web only): more motes
     rand: mulberry32(seed),
     tick: 0,
     simTick: 0,
@@ -139,6 +147,7 @@ export function createGame({ seed = 1, night = 1, scenario = null, bench = false
     const idx = map.moteSpawns.map((_, i) => i);
     shuffle(g, idx);
     for (const i of idx.slice(0, R.moteInitial)) addMote(g, map.moteSpawns[i], 'random', null, i, -1);
+    if (assist) for (let i = 0; i < ASSIST.extraInitial; i++) addAssistMote(g, -1);
   }
 
   if (sc.shades) {
@@ -202,6 +211,21 @@ function addMote(g, pos, kind, ttl, spawnIdx, born) {
   const m = { id: `M${g.nextMote++}`, pos: [pos[0], pos[1] ?? 0, pos[2]], kind, ttl, spawnIdx, born };
   g.motes.push(m);
   return m;
+}
+
+/** Easy mode: a mote 1.5-4 m from a random standard spawn point, on walkable ground. */
+function addAssistMote(g, born) {
+  for (let k = 0; k < 6; k++) {
+    const base = g.map.moteSpawns[Math.floor(g.rand() * g.map.moteSpawns.length)];
+    const a = g.rand() * 2 * Math.PI;
+    const r = 1.5 + g.rand() * 2.5;
+    const x = r3(base[0] + r * Math.cos(a));
+    const z = r3(base[2] + r * Math.sin(a));
+    const gh = g.map.ground(x, z);
+    if (gh == null || g.map.solid(x, z, gh)) continue;
+    addMote(g, [x, gh, z], 'random', null, -1, born);
+    return;
+  }
 }
 
 function makeShade(g, id, pos) {
@@ -769,7 +793,10 @@ export function step(g, input) {
   // 10. scheduled spawns (new entities interact from the next tick)
   const st = g.simTick;
   if (g.bench) return g.events; // bench: no scheduled spawns, no win/lose
-  if (g.randomMotes && st % R.moteSpawnEvery === 0 && g.motes.length < R.moteCap) {
+  if (g.assist && g.randomMotes && st % ASSIST.spawnEvery === 0) {
+    for (let n = 0; n < ASSIST.spawnBatch && g.motes.length < ASSIST.cap; n++) addAssistMote(g, st);
+  }
+  if (!g.assist && g.randomMotes && st % R.moteSpawnEvery === 0 && g.motes.length < R.moteCap) {
     const used = new Set(g.motes.map((m) => m.spawnIdx));
     const free = g.map.moteSpawns.map((_, i) => i).filter((i) => !used.has(i));
     if (free.length) {

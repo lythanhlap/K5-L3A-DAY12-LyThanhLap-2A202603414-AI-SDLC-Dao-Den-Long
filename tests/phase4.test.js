@@ -69,3 +69,20 @@ test('soak: runs N nights in one process and writes the contract fields', () => 
   assert.equal(s.results.length, 4);
   assert.ok(s.results.every((x) => x === 'won' || x === 'lost'));
 });
+
+test('easy mode is opt-in: standard mote numbers stay the default (headless never passes assist)', async () => {
+  const { createGame, step, ASSIST } = await import('../src/sim/game.js');
+  for (const night of [1, 2, 3]) {
+    const std = createGame({ seed: 3, night, scenario: { random_shades: false, random_drifters: false } });
+    const easy = createGame({ seed: 3, night, assist: true, scenario: { random_shades: false, random_drifters: false } });
+    assert.equal(std.motes.length, 20, 'Ticket-02 standard: 20 at start');
+    assert.equal(easy.motes.length, 20 + ASSIST.extraInitial);
+    for (let i = 0; i < 2400; i++) {
+      step(std, { move: [0, 0] });
+      step(easy, { move: [0, 0] });
+    }
+    assert.ok(std.motes.length <= 30, 'standard cap 30');
+    assert.equal(easy.motes.length, ASSIST.cap);
+    for (const m of easy.motes) assert.notEqual(easy.map.ground(m.pos[0], m.pos[2]), null, 'easy motes sit on ground');
+  }
+});

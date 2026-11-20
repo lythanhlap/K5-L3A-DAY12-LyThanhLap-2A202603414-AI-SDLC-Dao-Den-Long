@@ -1,6 +1,7 @@
 # AGENTS.md: Đảo Đèn Lồng
 
-3D third-person game (Three.js + Vite) with a deterministic headless mode graded by **Test Contract v1.2** (3 nights, lantern fuel; see `docs/adr/`).
+3D third-person game (Three.js + Vite) with a deterministic headless mode graded by **Test Contract v1.3** (3 nights, lantern fuel, bench/soak; see `docs/adr/`).
+Easy mode (`assist`) is web-only and must stay OFF in headless/bench/soak.
 Requirements live on the lab board. Per-phase spec and assumptions live in `docs/notes/phase-N.md`. **Read the latest one first.**
 
 ## Commands
