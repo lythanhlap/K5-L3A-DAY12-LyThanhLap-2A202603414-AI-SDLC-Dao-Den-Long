@@ -1,1 +1,1 @@
-{ "random_motes": false, "random_shades": false, "motes": [[0, 0, 3]], "shades": [], "lanterns": [{ "id": "L1", "pos": [0, 0, 10], "deposited": 4 }] }
+{ "random_motes": false, "random_shades": false, "random_drifters": false, "motes": [], "shades": [], "motes": [[0, 0, 3]], "lanterns": [{ "id": "L1", "pos": [0, 0, 10], "deposited": 9 }] }

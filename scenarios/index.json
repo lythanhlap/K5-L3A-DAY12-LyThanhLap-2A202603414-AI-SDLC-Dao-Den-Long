@@ -1,58 +1,72 @@
 [
   {
-    "name": "walk", "ac": "AC1", "seed": 1, "ticks": 180,
-    "why": "6 m/s forward; cam_yaw 90 turns forward into +X; [1,1] normalized",
+    "name": "walk", "ac": "AC1 P2-2", "night": 1, "seed": 1, "ticks": 180,
+    "why": "6 m/s forward (instant accel); cam_yaw 90 turns forward into +X; [1,1] normalized; vel reported",
     "expect": [
       { "snapshot": 60, "path": "player.pos", "equals": [0, 0, 6] },
+      { "snapshot": 60, "path": "player.vel", "equals": [0, 0, 6] },
+      { "snapshot": 60, "path": "player.grounded", "equals": true },
       { "snapshot": 120, "path": "player.pos", "equals": [6, 0, 6] },
       { "snapshot": 180, "path": "player.pos", "equals": [10.243, 0, 10.243] },
-      { "snapshot": 60, "path": "time_left_s", "equals": 299 }
+      { "snapshot": 60, "path": "time_left_s", "equals": 299 },
+      { "snapshot": 0, "path": "night", "equals": 1 },
+      { "event": "night_start", "data": { "night": 1 }, "tick": 0 }
     ]
   },
   {
-    "name": "pickup_light", "ac": "AC2 AC3", "seed": 1, "ticks": 120,
-    "why": "walk over a mote (pickup <= 1 m), stop near L1 (4/5), interact lights it",
+    "name": "pickup_light", "ac": "AC2 AC3 P2-12", "night": 1, "seed": 1, "ticks": 120,
+    "why": "pick a mote on the way (no score), L1 9/10, interact lights it: +10 per deposited mote, +100 lantern",
     "expect": [
       { "event": "mote_picked", "data": { "carried": 1 } },
-      { "event": "deposit", "data": { "lantern_id": "L1", "amount": 1, "deposited": 5 }, "tick": 91 },
+      { "event": "deposit", "data": { "lantern_id": "L1", "amount": 1, "deposited": 10 }, "tick": 91 },
       { "event": "lantern_lit", "data": { "lantern_id": "L1" }, "tick": 91 },
+      { "snapshot": 80, "path": "score", "equals": 0 },
       { "end": { "state": "playing", "score": 110 } }
     ]
   },
   {
-    "name": "pulse_stun", "ac": "AC4", "seed": 1, "ticks": 180,
-    "why": "pulse costs 1, stuns + pushes S1 4 m; second press during cooldown does nothing; stun lasts 2 s",
+    "name": "pulse_stun", "ac": "P2-6", "night": 1, "seed": 1, "ticks": 140,
+    "why": "pulse costs 3, 3D radius 5 from foot+0.8; push 4 m over 15 ticks; stun 120 ticks; cooldown 3 s; +5",
     "expect": [
       { "event": "pulse", "data": { "stunned_ids": ["S1"] }, "tick": 1 },
       { "count": "pulse", "equals": 1 },
-      { "snapshot": 10, "path": "player.carried", "equals": 1 },
+      { "snapshot": 10, "path": "player.carried", "equals": 0 },
+      { "snapshot": 10, "path": "player.pulse_cd_s", "equals": 2.85 },
       { "snapshot": 10, "path": "shades.0.state", "equals": "stunned" },
-      { "snapshot": 10, "path": "shades.0.pos", "equals": [7.942, 1, 0] },
-      { "snapshot": 110, "path": "shades.0.pos", "equals": [7.942, 1, 0] },
+      { "snapshot": 10, "path": "shades.0.pos", "equals": [6.667, 1, 0] },
+      { "snapshot": 20, "path": "shades.0.pos", "equals": [8, 1, 0] },
+      { "snapshot": 120, "path": "shades.0.state", "equals": "stunned" },
       { "snapshot": 130, "path": "shades.0.state", "equals": "chase" },
-      { "end": { "score": 20 } }
+      { "snapshot": 130, "path": "shades.0.pos", "equals": [7.333, 1, 0] },
+      { "end": { "score": 5 } }
     ]
   },
   {
-    "name": "hit_drop", "ac": "AC5", "seed": 1, "ticks": 100,
-    "why": "shade touching player: -1 flame, drop floor(carried*0.5), then 1.5 s invulnerability",
+    "name": "hit_drop", "ac": "AC5 P2-5", "night": 1, "seed": 1, "ticks": 100,
+    "why": "hit: -1 flame, floor(4/2)=2 dropped motes (TTL 480), shade recoils 60 ticks, Mây invulnerable 90 ticks",
     "expect": [
       { "event": "player_hit", "data": { "by": "shade", "flames": 2, "dropped": 2 }, "tick": 1 },
+      { "snapshot": 10, "path": "motes_active", "equals": 2 },
+      { "snapshot": 10, "path": "motes.0.kind", "equals": "dropped" },
+      { "snapshot": 10, "path": "motes.0.ttl_s", "equals": 7.85 },
+      { "snapshot": 10, "path": "shades.0.state", "equals": "recoil" },
+      { "snapshot": 10, "path": "player.invuln", "equals": true },
+      { "snapshot": 60, "path": "shades.0.pos", "equals": [2.4, 1, 0] },
       { "event": "player_hit", "data": { "by": "shade", "flames": 1, "dropped": 1 }, "tick": 91 },
       { "count": "player_hit", "equals": 2 }
     ]
   },
   {
-    "name": "win", "ac": "AC6", "seed": 1, "ticks": 100,
-    "why": "4 pre-lit lanterns (no score), last deposit lights L5 -> won; 100 + floor(299.983) + 3*50",
+    "name": "win", "ac": "AC6 P2-12", "night": 1, "seed": 1, "ticks": 100,
+    "why": "4 pre-lit lanterns; last mote lights L5 -> won; 10 + 100 + floor(299.983)*2 + 3*50 = 858",
     "expect": [
       { "event": "lantern_lit", "data": { "lantern_id": "L5" }, "tick": 1 },
       { "event": "game_over", "data": { "result": "won", "reason": "all_lit" }, "tick": 1 },
-      { "end": { "ticks": 1, "state": "won", "score": 549 } }
+      { "end": { "ticks": 1, "state": "won", "score": 858 } }
     ]
   },
   {
-    "name": "dawn", "ac": "AC7", "seed": 1, "ticks": 120,
+    "name": "dawn", "ac": "AC7 P2-12", "night": 1, "seed": 1, "ticks": 120,
     "why": "time_left_s 1 -> dawn after 60 steps",
     "expect": [
       { "event": "game_over", "data": { "result": "lost", "reason": "dawn" }, "tick": 60 },
@@ -60,7 +74,7 @@
     ]
   },
   {
-    "name": "no_flames", "ac": "AC7", "seed": 1, "ticks": 60,
+    "name": "no_flames", "ac": "AC7 P2-12", "night": 1, "seed": 1, "ticks": 60,
     "why": "last flame lost on first touch; shade without id gets S1",
     "expect": [
       { "event": "player_hit", "data": { "by": "shade", "flames": 0, "dropped": 0 }, "tick": 1 },
@@ -70,20 +84,178 @@
     ]
   },
   {
-    "name": "safe_zone", "ac": "AC8", "seed": 1, "ticks": 600,
-    "why": "player stands at lit L1; shade stops outside safe_radius and never hits",
+    "name": "safe_zone", "ac": "AC8", "night": 1, "seed": 1, "ticks": 600,
+    "why": "player stands at lit L1; chasing shade is held at the 6 m edge and never hits",
     "expect": [
-      { "min_dist": { "shade": "S1", "lantern": "L1" }, "gt": 5 },
+      { "min_dist": { "shade": "S1", "lantern": "L1" }, "gt": 6 },
       { "count": "player_hit", "equals": 0 },
       { "end": { "state": "playing" } }
     ]
   },
   {
-    "name": "random_seed42", "ac": "AC9", "seed": 42, "ticks": 1200, "scenario": false, "inputs": false,
-    "why": "default night with random motes/shades, player idle; checked for determinism",
+    "name": "safe_evict", "ac": "AC8", "night": 1, "seed": 1, "ticks": 60,
+    "why": "shade 3 m from L1 when it is lit is pushed to the 6 m edge within 30 ticks, harmless meanwhile",
     "expect": [
-      { "snapshot": 0, "path": "motes_active", "equals": 30 },
-      { "snapshot": 0, "path": "shades.length", "equals": 3 }
+      { "event": "lantern_lit", "data": { "lantern_id": "L1" }, "tick": 1 },
+      { "dist": { "path": "shades.0.pos", "point": [0, 0, 8], "snapshot": 30 }, "between": [6, 6.01] },
+      { "min_dist": { "shade": "S1", "lantern": "L1" }, "gt": 2.9 },
+      { "count": "player_hit", "equals": 0 }
+    ]
+  },
+  {
+    "name": "dash", "ac": "P2-3", "night": 1, "seed": 1, "ticks": 120,
+    "why": "standing dash goes along facing (+Z): 14 m/s x 12 ticks = 2.8 m; cooldown 90 ticks from dash start",
+    "expect": [
+      { "event": "dash", "tick": 1 },
+      { "snapshot": 20, "path": "player.pos", "equals": [0, 0, 2.8] },
+      { "snapshot": 20, "path": "player.dash_cd_s", "equals": 1.183 },
+      { "event": "dash", "tick": 91 },
+      { "count": "dash", "equals": 2 },
+      { "snapshot": 110, "path": "player.pos", "equals": [0, 0, 5.6] }
+    ]
+  },
+  {
+    "name": "fall", "ac": "P2-4", "night": 1, "seed": 1, "ticks": 240,
+    "why": "walk off the 40 m edge: Y < -10 -> -1 flame, lose all 4 motes, wait 60 ticks, respawn at start invulnerable",
+    "expect": [
+      { "event": "player_hit", "data": { "by": "fall", "flames": 2, "dropped": 0, "lost": 4 } },
+      { "count": "player_hit", "equals": 1 },
+      { "snapshot": 200, "path": "player.pos", "equals": [0, 0, 0] },
+      { "snapshot": 200, "path": "player.carried", "equals": 0 },
+      { "snapshot": 200, "path": "player.grounded", "equals": true },
+      { "end": { "state": "playing" } }
+    ]
+  },
+  {
+    "name": "pause", "ac": "P2-9", "night": 1, "seed": 1, "ticks": 100,
+    "why": "paused from tick 31 to 60: tick keeps counting, sim_tick/time/movement freeze",
+    "expect": [
+      { "event": "paused", "tick": 31 },
+      { "event": "resumed", "tick": 61 },
+      { "snapshot": 50, "path": "state", "equals": "paused" },
+      { "snapshot": 50, "path": "sim_tick", "equals": 30 },
+      { "snapshot": 50, "path": "time_left_s", "equals": 299.5 },
+      { "snapshot": 50, "path": "player.pos", "equals": [0, 0, 3] },
+      { "snapshot": 100, "path": "sim_tick", "equals": 70 },
+      { "snapshot": 100, "path": "player.pos", "equals": [0, 0, 7] },
+      { "end": { "ticks": 100, "state": "playing" } }
+    ]
+  },
+  {
+    "name": "charm", "ac": "P2-8", "night": 2, "seed": 1, "ticks": 60,
+    "why": "Bùa Gió C1 on the bridge: 600 ticks, run 7.2 m/s, dash with no cooldown, respawn after 2700",
+    "expect": [
+      { "event": "charm_picked", "data": { "charm_id": "C1", "charm_ticks": 600 }, "tick": 10 },
+      { "snapshot": 20, "path": "player.charm_s", "equals": 9.833 },
+      { "snapshot": 20, "path": "charms.0.available", "equals": false },
+      { "snapshot": 20, "path": "charms.0.respawn_s", "equals": 44.833 },
+      { "snapshot": 20, "path": "player.pos", "equals": [34.6, 0, 0] },
+      { "count": "dash", "equals": 2 },
+      { "snapshot": 60, "path": "player.pos", "equals": [40.2, 0, 0] }
+    ]
+  },
+  {
+    "name": "drifter_steal", "ac": "P2-7", "night": 2, "seed": 1, "ticks": 330,
+    "why": "Mây carries 6 within 15 m -> D1 chases at 7 m/s, steals min(3,6) at 1.2 m, flees 240 ticks, removed",
+    "expect": [
+      { "snapshot": 10, "path": "drifters.0.state", "equals": "chase" },
+      { "event": "drifter_steal", "data": { "drifter_id": "D1", "amount": 3, "carried": 3 }, "tick": 76 },
+      { "snapshot": 80, "path": "drifters.0.state", "equals": "flee" },
+      { "snapshot": 80, "path": "drifters.0.stolen", "equals": 3 },
+      { "snapshot": 320, "path": "drifters.0.state", "equals": "removed" },
+      { "count": "drifter_steal", "equals": 1 }
+    ]
+  },
+  {
+    "name": "drifter_pulse", "ac": "P2-7", "night": 2, "seed": 1, "ticks": 140,
+    "why": "pulse hits a fleeing D1 carrying 3 -> drops them as dropped motes where it is, vanishes after 120 ticks",
+    "expect": [
+      { "event": "pulse", "data": { "stunned_ids": [] }, "tick": 1 },
+      { "event": "drifter_drop", "data": { "drifter_id": "D1", "amount": 3 }, "tick": 1 },
+      { "snapshot": 10, "path": "motes_active", "equals": 3 },
+      { "snapshot": 10, "path": "motes.0.pos", "equals": [3, 0, 0] },
+      { "snapshot": 110, "path": "drifters.0.state", "equals": "flee" },
+      { "snapshot": 130, "path": "drifters.0.state", "equals": "removed" }
+    ]
+  },
+  {
+    "name": "jumppad_n2", "ac": "P2-10", "night": 2, "seed": 1, "ticks": 140,
+    "why": "pad (20,0,18) launches vy 14 + 24 m/s toward B (70,0,0); lands on island B (~1.4 s)",
+    "expect": [
+      { "snapshot": 40, "path": "player.grounded", "equals": false },
+      { "snapshot": 140, "path": "player.grounded", "equals": true },
+      { "snapshot": 140, "path": "player.pos.0", "between": [50, 55] },
+      { "snapshot": 140, "path": "player.pos.1", "equals": 0 },
+      { "count": "player_hit", "equals": 0 }
+    ]
+  },
+  {
+    "name": "jumppad_n3", "ac": "P2-10 P2-11", "night": 3, "seed": 1, "ticks": 120,
+    "why": "pad (0,3,13) on tier 1 launches vy 12 + 8 m/s toward -Z; lands on tier 2 (Y=6), outside the tower",
+    "expect": [
+      { "snapshot": 120, "path": "player.grounded", "equals": true },
+      { "snapshot": 120, "path": "player.pos.1", "equals": 6 },
+      { "snapshot": 120, "path": "player.pos.2", "between": [2, 8] },
+      { "count": "player_hit", "equals": 0 }
+    ]
+  },
+  {
+    "name": "n3_wall", "ac": "P2-11", "night": 3, "seed": 1, "ticks": 60,
+    "why": "tier-1 edge at r=24 is a 3 m wall: walking -Z from r=26 stops there at Y=0",
+    "expect": [
+      { "snapshot": 60, "path": "player.pos.2", "between": [24, 24.2] },
+      { "snapshot": 60, "path": "player.pos.1", "equals": 0 }
+    ]
+  },
+  {
+    "name": "n3_ramp", "ac": "P2-11", "night": 3, "seed": 1, "ticks": 90,
+    "why": "ramp at 30°: from r=30 (Y=0) walking inward 6 m reaches tier 1 (Y=3)",
+    "expect": [
+      { "snapshot": 30, "path": "player.pos.1", "between": [1.4, 1.6] },
+      { "snapshot": 90, "path": "player.pos.1", "equals": 3 },
+      { "snapshot": 90, "path": "player.grounded", "equals": true }
+    ]
+  },
+  {
+    "name": "wind", "ac": "P2-11", "night": 3, "seed": 1, "ticks": 1900,
+    "why": "first gust at sim_tick 1800 lasts 5 s and pushes Mây 2 m/s: 100 ticks -> 3.33 m",
+    "expect": [
+      { "snapshot": 1790, "path": "wind.active", "equals": false },
+      { "snapshot": 1900, "path": "wind.active", "equals": true },
+      { "dist": { "path": "player.pos", "point": [0, 0, -30], "snapshot": 1900 }, "between": [3.3, 3.4] }
+    ]
+  },
+  {
+    "name": "random_seed42", "ac": "P2-13", "night": 1, "seed": 42, "ticks": 1200, "scenario": false, "inputs": false,
+    "why": "default night 1: 20 motes, first 2 shades at tick 300 in 'spawning', then 1 every 8 s",
+    "expect": [
+      { "snapshot": 0, "path": "motes_active", "equals": 20 },
+      { "snapshot": 0, "path": "shades.length", "equals": 0 },
+      { "event": "shade_spawned", "data": { "id": "S1" }, "tick": 300 },
+      { "event": "shade_spawned", "data": { "id": "S2" }, "tick": 300 },
+      { "event": "shade_spawned", "data": { "id": "S3" }, "tick": 780 },
+      { "snapshot": 300, "path": "shades.0.state", "equals": "spawning" },
+      { "snapshot": 300, "path": "motes.0.kind", "equals": "random" }
+    ]
+  },
+  {
+    "name": "random_n2", "ac": "P2-13", "night": 2, "seed": 5, "ticks": 1210, "scenario": false, "inputs": false,
+    "why": "default night 2: 6 lanterns, charm C1, first Gió Lạc D1 at tick 1200",
+    "expect": [
+      { "snapshot": 0, "path": "lanterns.length", "equals": 6 },
+      { "snapshot": 0, "path": "charms.0.id", "equals": "C1" },
+      { "snapshot": 1190, "path": "drifters.length", "equals": 0 },
+      { "snapshot": 1210, "path": "drifters.0.id", "equals": "D1" }
+    ]
+  },
+  {
+    "name": "random_n3", "ac": "P2-13", "night": 3, "seed": 9, "ticks": 600, "scenario": false, "inputs": false,
+    "why": "default night 3: 7 lanterns, 2 charms, start (0,0,-30)",
+    "expect": [
+      { "snapshot": 0, "path": "lanterns.length", "equals": 7 },
+      { "snapshot": 0, "path": "charms.length", "equals": 2 },
+      { "snapshot": 0, "path": "player.pos", "equals": [0, 0, -30] },
+      { "snapshot": 0, "path": "motes_active", "equals": 20 }
     ]
   }
 ]

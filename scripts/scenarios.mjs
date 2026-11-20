@@ -14,7 +14,7 @@ export function headless(args) {
 }
 
 export function argsFor(s, out) {
-  const args = ['--seed', String(s.seed), '--night', '1', '--ticks', String(s.ticks), '--out', out];
+  const args = ['--seed', String(s.seed), '--night', String(s.night ?? 1), '--ticks', String(s.ticks), '--out', out];
   const sc = join(SCEN_DIR, `${s.name}.scenario.json`);
   const inp = join(SCEN_DIR, `${s.name}.inputs.json`);
   if (s.scenario !== false && existsSync(sc)) args.push('--scenario', sc);
@@ -54,11 +54,17 @@ export function checkExpectations(s, lines) {
     } else if ('snapshot' in e) {
       const sn = snaps.find((x) => x.tick === e.snapshot);
       const v = sn ? get(sn, e.path) : '(no snapshot)';
-      ok = deq(v, e.equals);
+      ok = e.between ? typeof v === 'number' && v >= e.between[0] && v <= e.between[1] : deq(v, e.equals);
       detail = `actual=${JSON.stringify(v)}`;
     } else if (e.end) {
       ok = end.type === 'end' && partial(end, e.end);
       detail = `end=${JSON.stringify(end)}`;
+    } else if (e.dist) {
+      const sn = snaps.find((x) => x.tick === e.dist.snapshot);
+      const v = sn ? get(sn, e.dist.path) : null;
+      const d = v ? Math.hypot(v[0] - e.dist.point[0], v[2] - e.dist.point[2]) : NaN;
+      ok = d >= e.between[0] && d <= e.between[1];
+      detail = `dist=${d.toFixed(3)}`;
     } else if (e.min_dist) {
       let min = Infinity;
       for (const sn of snaps) {

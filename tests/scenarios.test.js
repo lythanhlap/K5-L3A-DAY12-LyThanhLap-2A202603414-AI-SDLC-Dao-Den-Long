@@ -32,7 +32,7 @@ test('output format: snapshot cadence, tick 0 first, end line last', () => {
   assert.deepEqual(snapTicks, Array.from({ length: Math.floor(endTick / 10) + 1 }, (_, i) => i * 10));
   for (const l of lines.filter((x) => x.type === 'snapshot')) {
     assert.equal(l.sim_tick, l.tick);
-    for (const sh of l.shades) assert.ok(['chase', 'stunned'].includes(sh.state));
+    for (const sh of l.shades) assert.ok(['spawning', 'wander', 'chase', 'recoil', 'stunned'].includes(sh.state), sh.state);
   }
 });
 
@@ -73,6 +73,30 @@ test('malformed scenario (unknown lantern id) -> exit 2', () => {
   const r = headless(['--seed', '1', '--night', '1', '--ticks', '5', '--scenario', f, '--out', join(tmp, 'y.jsonl')]);
   assert.equal(r.code, 2);
 });
+
+test('--night outside 1..3 -> non-zero exit', () => {
+  const r = headless(['--seed', '1', '--night', '4', '--ticks', '5', '--out', join(tmp, 'n4.jsonl')]);
+  assert.notEqual(r.code, 0);
+});
+
+test('night_start is the first event (tick 0) and the end line is last', () => {
+  const s = scenarios.find((x) => x.name === 'random_n3');
+  const { lines } = runScenario(s, join(tmp, 'ns'));
+  assert.deepEqual(lines[1], { type: 'event', tick: 0, name: 'night_start', data: { night: 3 } });
+  assert.equal(lines.at(-1).type, 'end');
+});
+
+for (const night of [1, 2, 3]) {
+  test(`performance: full night ${night} (21600 ticks) headless <= 30 s`, () => {
+    const out = join(tmp, `perf${night}.jsonl`);
+    const scn = join(tmp, 'immortal.json');
+    writeFileSync(scn, '{"player":{"flames":1000}}');
+    const t0 = Date.now();
+    assert.equal(headless(['--seed', '11', '--night', String(night), '--ticks', '21600', '--scenario', scn, '--out', out]).code, 0);
+    const ms = Date.now() - t0;
+    assert.ok(ms <= 30000, `${ms} ms`);
+  });
+}
 
 test('missing required args -> non-zero exit with stderr', () => {
   const r = headless(['--seed', '1', '--night', '1']);
