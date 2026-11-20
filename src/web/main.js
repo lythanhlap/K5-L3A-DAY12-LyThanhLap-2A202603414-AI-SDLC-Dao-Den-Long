@@ -19,7 +19,7 @@ const SETTINGS_KEY = 'ddl-settings';
 const DEFAULT_KEYS = { up: 'KeyW', down: 'KeyS', left: 'KeyA', right: 'KeyD', jump: 'Space', dash: 'ShiftLeft', interact: 'KeyE', pulse: 'KeyF', pause: 'Escape' };
 const KEY_LABELS = { up: 'Đi lên', down: 'Đi xuống', left: 'Sang trái', right: 'Sang phải', jump: 'Nhảy', dash: 'Lướt', interact: 'Tương tác (nạp / châm dầu)', pulse: 'Tỏa sáng', pause: 'Tạm dừng' };
 const RESERVED = { ArrowLeft: 'xoay camera trái', ArrowRight: 'xoay camera phải', F3: 'bộ đếm FPS' };
-const settings = { volume: 0.6, sens: 0.5, gamma: 1, colorblind: false, captions: true, reduceMotion: false, largeText: false, keys: { ...DEFAULT_KEYS } };
+const settings = { volume: 0.6, sens: 0.5, gamma: 1, colorblind: false, captions: true, reduceMotion: false, largeText: false, followCam: true, keys: { ...DEFAULT_KEYS } };
 try {
   const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
   Object.assign(settings, saved, { keys: { ...DEFAULT_KEYS, ...(saved.keys || {}) } });
@@ -65,7 +65,7 @@ function applyAccessibility() {
   document.documentElement.classList.toggle('large', settings.largeText);
   $('captions').classList.toggle('hidden', !settings.captions);
 }
-for (const [id, key] of [['set-captions', 'captions'], ['set-motion', 'reduceMotion'], ['set-large', 'largeText']]) {
+for (const [id, key] of [['set-captions', 'captions'], ['set-motion', 'reduceMotion'], ['set-large', 'largeText'], ['set-follow', 'followCam']]) {
   $(id).checked = settings[key];
   $(id).addEventListener('change', (e) => {
     settings[key] = e.target.checked;
@@ -143,7 +143,7 @@ scene.add(moon);
 
 const backdrop = new URLSearchParams(location.search).has('bench') ? { update() {} } : createBackdrop(scene);
 const playerMesh = makePlayer();
-window.__render = { playerMesh, camera }; // debug/verification hook (read-only use)
+window.__render = { playerMesh, camera, get camYaw() { return camYaw; } }; // debug/verification hook (read-only use)
 scene.add(playerMesh);
 
 // entity visuals
@@ -170,6 +170,22 @@ function makeShade() {
   g.userData = { mat, rimMat, body, rim };
   return g;
 }
+// soft radial glow texture shared by lantern halos / ground glows (generated, no external asset)
+const glowTex = (() => {
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const x = c.getContext('2d');
+  const gr = x.createRadialGradient(64, 64, 0, 64, 64, 64);
+  gr.addColorStop(0, 'rgba(255,233,176,1)');
+  gr.addColorStop(0.25, 'rgba(255,179,71,0.75)');
+  gr.addColorStop(0.6, 'rgba(255,179,71,0.18)');
+  gr.addColorStop(1, 'rgba(255,179,71,0)');
+  x.fillStyle = gr;
+  x.fillRect(0, 0, 128, 128);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+})();
 function makeLantern() {
   const g = new THREE.Group();
   const post = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 3, 8), new THREE.MeshStandardMaterial({ color: PAL.wood }));
@@ -180,15 +196,32 @@ function makeLantern() {
   paper.position.y = 3.4;
   const core = new THREE.Mesh(new THREE.SphereGeometry(0.25, 10, 8), new THREE.MeshBasicMaterial({ color: PAL.lanternCore }));
   core.position.y = 3.4;
-  const light = new THREE.PointLight(PAL.lanternLit, 0, 20, 1.3);
+  const light = new THREE.PointLight(PAL.lanternLit, 0, 30, 1.1);
   light.position.y = 3.6;
+  // halo around the paper lantern + warm pool of light on the ground (additive, no fog dimming)
+  const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: '#ffffff', transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+  halo.position.y = 3.4;
+  halo.scale.setScalar(4.5);
+  const pool = new THREE.Mesh(
+    new THREE.PlaneGeometry(1, 1),
+    new THREE.MeshBasicMaterial({ map: glowTex, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }),
+  );
+  pool.rotation.x = -Math.PI / 2;
+  pool.position.y = 0.06;
+  pool.scale.setScalar(13);
+  // burst ring shown for ~0.9 s at the moment the lantern is lit
+  const burst = new THREE.Mesh(
+    new THREE.RingGeometry(0.8, 1, 48),
+    new THREE.MeshBasicMaterial({ color: PAL.lanternCore, transparent: true, opacity: 0, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false }),
+  );
+  burst.position.y = 3.4;
   const ring = new THREE.Mesh(
     new THREE.RingGeometry(TUNING.safe_radius - 0.12, TUNING.safe_radius, 64),
     new THREE.MeshBasicMaterial({ color: PAL.lanternLit, transparent: true, opacity: 0, side: THREE.DoubleSide }),
   );
   ring.rotation.x = -Math.PI / 2;
   ring.position.y = 0.05;
-  g.add(post, paper, core, light, ring);
+  g.add(post, paper, core, light, ring, halo, pool, burst);
   // tear in the paper (only shown when unlit, so lit/unlit differ without colour)
   const tear = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.7, 0.05), new THREE.MeshBasicMaterial({ color: '#1a1424' }));
   tear.position.set(0.15, 3.4, 0.58);
@@ -204,7 +237,7 @@ function makeLantern() {
   bar.add(bg, fill);
   bar.renderOrder = 10;
   g.add(tear, bar);
-  g.userData = { mat, light, ring, core, paper, tear, bar, fill };
+  g.userData = { mat, light, ring, core, paper, tear, bar, fill, halo, pool, burst, burstT: 0 };
   return g;
 }
 function makeDrifter() {
@@ -244,6 +277,23 @@ scene.add(leaves);
 // ---------------------------------------------------------------- input
 const keys = new Set();
 let camYaw = 0;
+let lastManualCam = -1e9;
+/**
+ * Follow camera: while Mây moves, the view turns toward her heading so turning is easy to see.
+ * Weighted by how "forward" the move is (cos of the angle): walking forward/diagonally steers the
+ * camera, pure sideways strafing does not, walking back toward the camera never spins it around.
+ * Paused for 1.5 s after any manual camera input (mouse drag / arrow keys); can be turned off.
+ */
+function followCamera(dt) {
+  if (!settings.followCam || !game || mouseDown || performance.now() - lastManualCam < 1500) return;
+  const p = game.player;
+  if (Math.hypot(p.vel[0], p.vel[2]) < 0.5 || p.dashTicks > 0) return;
+  const target = (p.facing * 180) / Math.PI;
+  let diff = ((target - camYaw + 540) % 360) - 180; // shortest signed angle
+  const forwardness = Math.cos((diff * Math.PI) / 180);
+  if (forwardness <= 0) return; // moving back toward the camera: leave the view alone
+  camYaw += diff * Math.min(1, dt * 2.5 * forwardness);
+}
 let mouseDown = false;
 let mousePulse = false;
 let lastMouseX = 0;
@@ -284,11 +334,13 @@ addEventListener('mousemove', (e) => {
   lastMouseX = e.clientX;
   dragged += Math.abs(dx);
   camYaw -= dx * settings.sens * 0.6;
+  lastManualCam = performance.now();
 });
 
 function sampleInput() {
   if (keys.has('ArrowLeft')) camYaw += 2;
   if (keys.has('ArrowRight')) camYaw -= 2;
+  if (keys.has('ArrowLeft') || keys.has('ArrowRight')) lastManualCam = performance.now();
   let x = 0;
   let z = 0;
   const k = settings.keys;
@@ -539,7 +591,10 @@ function handleEvents(events) {
       case 'deposit':
         sfx.deposit();
         break;
-      case 'lantern_lit':
+      case 'lantern_lit': {
+        const lm = lanternMeshes.get(e.data.lantern_id);
+        if (lm) lm.userData.burstT = 1;
+      }
         sfx.lit();
         break;
       case 'pulse':
@@ -694,9 +749,22 @@ function syncEntities(t, dt) {
     const blinkOff = low && Math.floor(t * 2) % 2 === 1; // 1 Hz blink below 30
     const f = l.lit ? Math.max(0.25, fuel / TUNING.fuel_max) : l.deposited / lightCost(l);
     u.mat.color.set(l.lit ? PAL.lanternLit : PAL.lanternOff);
-    u.mat.emissiveIntensity = l.lit ? (blinkOff ? 0.3 : 1.6 * f) : f * 0.5;
+    // lit lanterns glow clearly: bright paper, halo, ground pool, strong long-range light (scaled by fuel)
+    const glow = l.lit && !blinkOff ? 0.55 + 0.45 * f : 0;
+    if (u.burstT > 0) u.burstT = Math.max(0, u.burstT - dt / 0.9);
+    const b = u.burstT; // 1 -> 0 right after lighting
+    u.mat.emissiveIntensity = l.lit ? (blinkOff ? 0.3 : 3.2 * glow + 3 * b) : f * 0.5;
     u.core.visible = l.lit && !blinkOff;
-    u.light.intensity = l.lit ? (blinkOff ? 15 : 80 * f) : f * 8;
+    u.light.intensity = l.lit ? (blinkOff ? 15 : 170 * glow + 250 * b) : f * 8;
+    u.halo.material.opacity = Math.min(1, 0.95 * glow + b);
+    u.halo.scale.setScalar(4.5 + 2.5 * glow + 6 * b);
+    u.pool.material.opacity = 0.5 * glow + 0.4 * b;
+    u.burst.visible = b > 0 && !settings.reduceMotion;
+    if (u.burst.visible) {
+      u.burst.scale.setScalar(1 + (1 - b) * 9);
+      u.burst.material.opacity = b;
+      u.burst.quaternion.copy(camera.quaternion);
+    }
     u.ring.material.opacity = l.lit && !low ? 0.35 : 0; // weak lanterns have no safe zone
     // unlit: crumpled 20% + torn paper (distinguishable without colour)
     u.paper.scale.set(l.lit ? 1 : 0.8, l.lit ? 1.25 : 1.0, l.lit ? 1 : 0.8);
@@ -912,6 +980,7 @@ function frame(now) {
     return;
   }
   if (shakeT > 0) shakeT = Math.max(0, shakeT - dt);
+  if (phase === 'playing') followCamera(dt);
   if (game && (phase === 'playing' || pauseQueued)) {
     acc += dt;
     if (pauseQueued) acc = Math.max(acc, DT);
