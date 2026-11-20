@@ -70,6 +70,8 @@ Nhật ký dùng AI: [docs/notes/ai-log.md](docs/notes/ai-log.md).
 ## Sáng tạo của tôi
 
 - **Mây là một chiến binh gấu trúc** (từ Phase 2 áo theo màu chuẩn `#E8E2D0`, khăn `#C8102E`) ([src/web/character.js](src/web/character.js)): áo choàng xanh ngọc với vạt đỏ, giáp vai đồng, đai đỏ, dây chéo và huy hiệu trước ngực, kiếm trong vỏ đeo sau lưng (chỉ để trang trí, không bao giờ rút ra). Mô hình dựng theo ảnh tham chiếu trong `game_charactor/`. **Không đội nón lá**, đèn lồng nhỏ treo ở đai (lệch so với PRD-0, xem giả định 16 trong docs/notes/phase-1.md). Có vòng đi bộ đơn giản (vung tay chân). Xem mẫu ở `http://localhost:5173/character.html` (thêm `?angle=180` để cố định góc). Ảnh: [front](docs/proof/phase-1/screens/04-character-front.png), [back](docs/proof/phase-1/screens/05-character-back.png), [side](docs/proof/phase-1/screens/06-character-side.png).
+- **Bối cảnh đêm**: vòm trời chuyển màu, sao nhấp nháy, trăng có quầng, biển mây trôi và các đảo nổi xa có đèn lồng ([src/web/backdrop.js](src/web/backdrop.js)).
+- **Chuyển động mượt**: nội suy hình ảnh giữa các tick 60 Hz trên màn hình tần số cao (đo: 0 khung giật ở 144 Hz).
 - Đèn nhỏ treo ở đai của Mây sáng mạnh dần theo số đom đóm đang mang (chỉ là hiển thị).
 - Bầu trời và sương chuyển từ tím đen sang tím hồng nhạt theo số đèn đã thắp. Đèn đã thắp có vòng sáng vàng đánh dấu vùng an toàn.
 

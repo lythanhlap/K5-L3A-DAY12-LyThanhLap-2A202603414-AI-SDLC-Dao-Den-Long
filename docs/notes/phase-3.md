@@ -86,3 +86,18 @@ Nguồn: tab Phase 3 trên lab board (đọc qua trình duyệt ngày 2026-11-20
 - **Test viết sai rồi sửa:** test "đèn đầy" lệch 1 tick hao; test vùng an toàn chạy quá ngắn. Cả hai đều do test sai, không phải code sai.
 - **Đo FPS:** lần đầu ra 30 FPS. Nguyên nhân là tab trình duyệt không ở phía trước nên bị giảm nhịp vẽ (trang `character.html` nhẹ cũng bị). Đưa tab lên trước thì đo lại được 144 FPS.
 - **Rủi ro với test ẩn:** giả định 2 (bóng tới đèn yếu với `shade_speed`), 4 (thời điểm ghi `fuel_drain`), 5 (bóng vừa chuyển `drain` hút từ tick sau). Điểm `per_second_left` khai báo là 0 vì ticket bỏ thưởng thời gian.
+
+## Rà soát di chuyển + bối cảnh nền (yêu cầu thêm của người dùng, chỉ đổi `src/web/`)
+
+**Rà soát di chuyển.** Logic sim đúng: 0,1 m/tick = 6 m/s, đường chéo được chuẩn hóa, có test phủ. Lỗi nằm ở phần hiển thị:
+
+| Vấn đề | Đo trước | Sửa | Đo sau |
+|---|---|---|---|
+| Giật hình: màn hình 144 Hz nhưng sim 60 Hz, không nội suy | Giữ W 120 khung: **69/119 khung nhân vật đứng yên**, bước nhảy 0 / 0,1 m xen kẽ | Nội suy vị trí giữa tick trước và tick hiện tại (`alpha = acc/DT`) cho nhân vật, Bóng Mực, Gió Lạc và camera. Dịch chuyển > 3 m (hồi sinh) thì không nội suy | **0/119 khung đứng yên**, mỗi khung 0,0417 m (độ lệch 0,0007), tốc độ hiển thị 6,00 m/s |
+| Quay mặt tức thời (180° trong 1 khung) | — | Xoay mượt theo cung ngắn nhất (khoảng 0,1 s) | — |
+
+**Bối cảnh nền** (`src/web/backdrop.js`, màu theo bảng chuẩn):
+- Vòm trời chuyển màu `#070b1f` → `#0E1430` → `#1B2350`, 1 400 ngôi sao nhấp nháy, trăng có quầng sáng.
+- Biển mây 260 cụm trôi chậm quanh đảo.
+- 10 đảo nổi xa (có tháp nhỏ và đèn lồng phát sáng) nhấp nhô nhẹ. Bố cục cố định theo từng đêm.
+- FPS vẫn **144 @1280×720**. Ảnh: [05](../proof/phase-3/screens/05-backdrop-stars-far-islands.jpg), [06](../proof/phase-3/screens/06-backdrop-moon-cloud-sea.jpg). Output headless không đổi (`npm test` vẫn xanh).
