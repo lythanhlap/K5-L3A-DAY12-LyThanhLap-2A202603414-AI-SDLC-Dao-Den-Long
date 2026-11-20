@@ -41,13 +41,14 @@ export const isWeak = (l) => l.lit && l.fuelU < FUEL_LOW_U;
 export class ScenarioError extends Error {}
 
 // ---------------------------------------------------------------- setup
-export function createGame({ seed = 1, night = 1, scenario = null } = {}) {
+export function createGame({ seed = 1, night = 1, scenario = null, bench = false } = {}) {
   const map = NIGHTS[night];
   if (!map) throw new ScenarioError(`unknown night ${night}`);
   const T = TUNING;
   const g = {
     night,
     map,
+    bench, // Ticket-04 bench scene: no spawns, damage, pickup, fuel decay or night end
     rand: mulberry32(seed),
     tick: 0,
     simTick: 0,
@@ -370,10 +371,10 @@ export function step(g, input) {
       d.stolen = 0;
     }
   }
-  // Ticket-03: fuel decay + drain (step 2), then lanterns at fuel <= 0 go out
-  for (const l of g.lanterns) if (l.lit) l.fuelU -= DECAY_U;
+  // Ticket-03: fuel decay + drain (step 2), then lanterns at fuel <= 0 go out (off in the bench scene)
+  if (!g.bench) for (const l of g.lanterns) if (l.lit) l.fuelU -= DECAY_U;
   for (const s of g.shades) {
-    if (s.state !== 'drain') continue;
+    if (s.state !== 'drain' || g.bench) continue;
     const l = g.lanterns.find((x) => x.id === s.targetLantern);
     if (!l || !l.lit) continue;
     l.fuelU -= DRAIN_U;
@@ -517,7 +518,7 @@ export function step(g, input) {
   if (g.wind.active && --g.wind.t <= 0) g.wind.active = false;
 
   // 4. pickup motes + charms
-  if (!waiting) {
+  if (!waiting && !g.bench) {
     const cap = capacityOf(g);
     for (let i = 0; i < g.motes.length && p.carried < cap; ) {
       const m = g.motes[i];
@@ -668,7 +669,7 @@ export function step(g, input) {
       else continue; // keeps draining, does not move
       s.drainTicks = 0;
     }
-    if (s.state === 'wander' && dp <= R.shadeDetect) s.state = 'chase';
+    if (s.state === 'wander' && dp <= R.shadeDetect && !g.bench) s.state = 'chase'; // bench: shades keep wandering
     else if (s.state === 'chase' && dp > R.shadeLose) s.state = 'wander';
     if (s.state === 'chase') {
       if (dp > 1e-9) {
@@ -731,7 +732,7 @@ export function step(g, input) {
   }
 
   // 9. touch: drifters steal first, then shade hits (ascending id)
-  if (!waiting) {
+  if (!waiting && !g.bench) {
     const byId = (a, b) => Number(a.id.slice(1)) - Number(b.id.slice(1));
     for (const d of [...g.drifters].sort(byId)) {
       if ((d.state === 'idle' || d.state === 'chase') && !d.hasStolen && p.carried > 0 && hdist(d.pos, p.pos) <= R.drifterTouch) {
@@ -767,6 +768,7 @@ export function step(g, input) {
 
   // 10. scheduled spawns (new entities interact from the next tick)
   const st = g.simTick;
+  if (g.bench) return g.events; // bench: no scheduled spawns, no win/lose
   if (g.randomMotes && st % R.moteSpawnEvery === 0 && g.motes.length < R.moteCap) {
     const used = new Set(g.motes.map((m) => m.spawnIdx));
     const free = g.map.moteSpawns.map((_, i) => i).filter((i) => !used.has(i));
@@ -852,4 +854,33 @@ export function snapshot(g) {
     drifters: g.drifters.map((d) => ({ id: d.id, pos: r3v(d.pos), state: d.state, stolen: d.stolen })),
     charms: g.charms.map((c) => ({ id: c.id, pos: r3v(c.pos), available: c.available, respawn_s: s2(c.available ? 0 : c.respawn) })),
   };
+}
+
+/**
+ * Ticket-04 benchmark scene (same for every submission): Night 1 with exactly 200 wandering shades
+ * spread over the island and 100 motes (seeded), L1-L3 lit at fuel 100, Mây idle at (0,0,0).
+ */
+export function createBenchGame(seed = 42) {
+  const g = createGame({
+    seed,
+    night: 1,
+    bench: true,
+    scenario: { random_motes: false, random_shades: false, random_drifters: false, motes: [], shades: [], lanterns: [{ id: 'L1', lit: true }, { id: 'L2', lit: true }, { id: 'L3', lit: true }] },
+  });
+  const spread = (rMin, rMax) => {
+    const r = Math.sqrt(rMin * rMin + g.rand() * (rMax * rMax - rMin * rMin));
+    const a = g.rand() * 2 * Math.PI;
+    return [r3(r * Math.cos(a)), r3(r * Math.sin(a))];
+  };
+  for (let i = 0; i < 200; i++) {
+    const [x, z] = spread(3, 38);
+    const s = makeShade(g, `S${g.nextShade++}`, [x, 1, z]);
+    s.state = 'wander';
+    g.shades.push(s);
+  }
+  for (let i = 0; i < 100; i++) {
+    const [x, z] = spread(1, 38);
+    addMote(g, [x, 0, z], 'random', null, -1, -1);
+  }
+  return g;
 }
