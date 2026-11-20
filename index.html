@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Đảo Đèn Lồng</title>
+    <style>
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #0d0818; font-family: system-ui, sans-serif; color: #fbe9c8; }
+      canvas { display: block; }
+      #hud { position: fixed; top: 12px; left: 12px; padding: 10px 14px; background: rgba(20, 10, 35, 0.6); border-radius: 10px; line-height: 1.6; font-size: 15px; pointer-events: none; min-width: 210px; }
+      #hud b { color: #ffc46b; }
+      #lanterns span { display: inline-block; margin-right: 6px; padding: 0 5px; border-radius: 4px; background: rgba(80, 50, 110, 0.6); font-size: 13px; }
+      #lanterns span.lit { background: #e8902c; color: #2a1200; }
+      #hint { position: fixed; bottom: 40px; width: 100%; text-align: center; font-size: 18px; text-shadow: 0 0 6px #000; pointer-events: none; }
+      #overlay { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(10, 5, 20, 0.72); }
+      #overlay .card { max-width: 460px; padding: 24px 28px; border-radius: 14px; background: rgba(40, 22, 60, 0.92); text-align: center; line-height: 1.6; }
+      #overlay h1 { margin: 0 0 8px; color: #ffc46b; font-size: 28px; }
+      #overlay kbd { background: #fbe9c8; color: #2a1640; border-radius: 4px; padding: 0 5px; font-size: 13px; }
+      .hidden { display: none !important; }
+    </style>
+  </head>
+  <body>
+    <div id="hud">
+      <div>Lửa: <b id="flames"></b></div>
+      <div>Đom đóm: <b id="carried"></b></div>
+      <div>Đèn: <span id="lanterns"></span></div>
+      <div>Thời gian: <b id="time"></b></div>
+      <div>Điểm: <b id="score"></b></div>
+      <div>Tỏa sáng: <b id="pulse"></b></div>
+    </div>
+    <div id="hint"></div>
+    <div id="overlay">
+      <div class="card">
+        <h1 id="ov-title">Đảo Đèn Lồng</h1>
+        <div id="ov-body">
+          Đêm 1, Đảo Bến. Giúp Mây gom đom đóm và thắp lại 5 Đèn Lồng Lớn trước bình minh.<br />
+          Né Bóng Mực tím đen. Chúng sợ đèn đã thắp.<br /><br />
+          <kbd>WASD</kbd> di chuyển · <kbd>Space</kbd> nhảy · <kbd>E</kbd> nạp đèn<br />
+          <kbd>F</kbd> / chuột trái: tỏa sáng · kéo chuột / <kbd>←</kbd><kbd>→</kbd> xoay camera
+        </div>
+        <p><b>Nhấn Enter hoặc click để bắt đầu</b></p>
+      </div>
+    </div>
+    <script type="module" src="/src/web/main.js"></script>
+  </body>
+</html>
