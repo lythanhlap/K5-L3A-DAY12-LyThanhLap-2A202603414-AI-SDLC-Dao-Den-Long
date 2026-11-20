@@ -50,3 +50,13 @@ Công cụ: Claude Code (desktop app, model Claude Opus 5.5). Harness: xem READM
 | Test | 7 test đỏ đúng như danh sách dự đoán trước; 31/31 scenario đạt lần đầu | |
 
 **Token / chi phí Phase 3:** _(điền số thật)_. Tiết kiệm: đọc ticket một lần rồi làm việc từ `phase-3.md`; dùng script Python có assert từng chỗ thay để không sửa nhầm.
+
+## Phase 4
+
+| Bước | Việc | Ghi chú |
+|---|---|---|
+| Đọc ticket | Đọc board bằng 9 ảnh chụp | Ghi thành `phase-4.md` |
+| Bench | Puppeteer mở Chrome thật 1280×720, vsync tắt; đo trong trang, lấy mẫu RSS cây tiến trình | 3 lần chạy: 178.8 / 173.3 / **157.2** (chính thức) FPS; ghi đủ cả 3 |
+| Soak | Chạy thật: **chưa đạt** ngưỡng bộ nhớ (×1.30) | Chẩn đoán: heap phẳng, semi-space không ảnh hưởng, `--jitless` ×1.03 nên nguyên nhân là JIT. **Không** đổi cấu hình để qua ngưỡng (theo yêu cầu "kết quả thật") |
+| Bảng xếp hạng / dễ tiếp cận | Kiểm trên bản `dist/` thật | Đổi phím, báo trùng, lưu điểm tên tiếng Việt, xuất file, phụ đề + mũi tên, chữ 18/22.5 px |
+| Token | Lấy từ công cụ usage | Ngữ cảnh 713k token; Pro 82% khung 5 giờ, 56% khung tuần. Không đo được theo từng phase |

@@ -8,6 +8,7 @@ Requirements live on the lab board. Per-phase spec and assumptions live in `docs
 - Test (must be green before you stop): `npm test`
 - Headless: `node src/headless.js --seed 1 --night <1|2|3> --ticks 600 --out out/run.jsonl [--scenario f] [--inputs f]`
 - Evidence: `npm run proof -- phase-N` → `docs/proof/phase-N/RESULTS.md` + `runs/*.jsonl`
+- Release run: `npm run build && node scripts/serve.mjs` · Bench: `node scripts/bench.mjs --seed 42 --duration 30 --out bench.json` · Soak: `node --expose-gc scripts/soak.mjs --seed 7 --nights 10 --out soak.json`
 
 ## Layout
 - `src/sim/`: pure game logic. **No DOM/Three imports.** It is the only place gameplay rules live.
@@ -29,6 +30,7 @@ Requirements live on the lab board. Per-phase spec and assumptions live in `docs
 - Rule replaced by a ticket → write an ADR in `docs/adr/` and a CHANGELOG entry, and delete or update old tests with the reason written next to them.
 - When patching code with scripts, anchor each replacement to a unique string and assert it matched exactly once.
 - Measure FPS only in a foreground tab (background tabs are throttled to ~30 FPS).
+- Bench/soak numbers are recorded exactly as produced, failures included. Never tune flags or rerun just to pass a threshold; analyse and document instead.
 - Never weaken a test to make it pass. If a ticket replaces a rule, update the test and write the reason in the phase notes ("Thay đổi so với…" table).
 - The renderer feeds edge-triggered buttons. While paused it must still deliver the button release (see `togglePause`).
 - Small commits, one concern each. Don't commit `node_modules`, `dist`, `.env`, or `game_charactor/` (licence unknown).

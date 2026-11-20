@@ -1,5 +1,20 @@
 # Changelog
 
+## [phase-4] v1.0.0, Contract v1.3: Ticket-04 "Bình minh: phát hành v1.0.0"
+
+### Added
+- `bench_cmd` (`node scripts/bench.mjs`): cảnh benchmark chuẩn trong cửa sổ Chrome 1280×720 thật, vsync tắt; ghi `bench.json`.
+- `soak_cmd` (`node --expose-gc scripts/soak.mjs`): N đêm liên tiếp trong một tiến trình; ghi `soak.json`.
+- Bảng xếp hạng cục bộ top 10, lưu `data/leaderboard.json`. Có màn hình từ menu và lệnh `--export-leaderboard`.
+- Dễ tiếp cận: đổi mọi phím (báo trùng, khôi phục mặc định), phụ đề / chỉ báo hình ảnh, giảm chuyển động, chữ ≥ 18 px, chữ lớn ×1.25.
+- Bối cảnh nền, nội suy chuyển động khi vẽ, thanh gamma.
+
+### Changed (breaking)
+- `contract_version` thành `"1.3"`, thêm `bench_cmd` và `soak_cmd`.
+- `run_cmd` thành `node scripts/serve.mjs` (phục vụ `dist/` + API bảng xếp hạng), nên `build_cmd` thành `npm ci && npm run build`.
+- Phím tạm dừng mặc định chỉ còn `Esc` (phím `P` cố định cũ bị bỏ vì mọi phím giờ đều đổi được).
+
+
 ## [phase-3] Contract v1.2: Ticket-03 "Đèn cạn dầu"
 
 ### Breaking changes
