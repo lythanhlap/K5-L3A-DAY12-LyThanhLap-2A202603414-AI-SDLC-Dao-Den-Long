@@ -97,3 +97,32 @@ Các lần thử chạy trước khi commit `d4e0cd0` nhưng cùng mã bench. Ch
 - **Clone sạch** sang thư mục tạm, chạy `npm ci && npm run build` (11 s, đã có cache Chrome của Puppeteer), rồi `node scripts/serve.mjs`: trang trả HTTP 200.
 - `npm test` trong bản clone lần đầu **đỏ 2 test**: test Phase 4 tự ghép đường dẫn bằng `URL.pathname`, nên dấu cách trong "PC ACER" thành `%20`. Đã sửa bằng `fileURLToPath`; bản clone giờ 123/123. Lỗi này chỉ lộ ra khi kiểm tra trên một thư mục sạch.
 - **File zip release** (`release/dao-den-long-v1.0.0-web.zip`, 164 KB): giải nén ra thư mục tạm, chạy `node scripts/serve.mjs`. Kết quả: trang 200, `POST /api/leaderboard` lưu được, `--export-leaderboard` ra đúng `{"entries":[…]}`.
+
+## Cập nhật sau phát hành: đèn sáng rõ hơn + camera theo hướng đi (yêu cầu của người dùng)
+
+- **Đèn khi thắp:**
+  - Thêm quầng sáng (sprite gradient tự tạo trong code) và vầng sáng ấm trên mặt đất.
+  - Nguồn sáng mạnh hơn và xa hơn (30 m); vẫn giảm theo mức dầu.
+  - Vòng "bùng sáng" khoảng 0,9 s lúc vừa thắp; tắt khi bật "Giảm chuyển động".
+  - Ảnh: [05 trước](../proof/phase-4/screens/05-lantern-before-lighting.jpg), [06 lúc thắp](../proof/phase-4/screens/06-lantern-lighting-burst.jpg), [07 ổn định](../proof/phase-4/screens/07-lantern-lit-halo-ground-glow.jpg).
+- **Camera theo hướng đi** (Cài đặt, mặc định bật):
+  - Khi di chuyển, camera xoay dần về hướng Mây đang đi, với trọng số `cos(góc)`.
+  - Tạm ngưng 1,5 s sau khi người chơi tự xoay camera (chuột hoặc ← →).
+  - Đo trên trình duyệt (giữ phím, đọc `camYaw`):
+
+    | Giữ phím | camYaw |
+    |---|---|
+    | chỉ W | 0 → 0 |
+    | W+A 1,5 s | 0 → 119.1° |
+    | W+D 1,5 s | 119.1 → 0° |
+    | S (đi lùi) | không đổi |
+    | D (đi ngang) | không đổi |
+
+- **Ảnh hưởng hiệu năng (đo thật, đã tắt server dev):**
+
+  | Lần đo | avg_fps | p1_low_fps | load_ms |
+  |---|---|---|---|
+  | **Chính thức** (commit `953b7d8`) | **114.1** | **47.3** | 3891 |
+  | Đo lại ngay sau đó, cùng mã | 136.9 | 70.3 | 2991 |
+
+  Trước thay đổi là 157.2 / 87.1. Hiệu ứng mới tốn khoảng 15–25% FPS ở cảnh bench (3 đèn sáng, 200 Bóng Mực). Vẫn đạt ngưỡng ≥ 60 / ≥ 30 trên máy này, nhưng biên an toàn của `p1_low_fps` đã nhỏ hơn. `bench.json` là lần chính thức.
