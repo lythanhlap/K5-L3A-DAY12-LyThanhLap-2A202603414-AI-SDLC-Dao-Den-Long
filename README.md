@@ -11,7 +11,7 @@ Game 3D góc nhìn thứ ba (Three.js). Mây, người giữ đèn nhỏ tuổi 
 
 - **Node.js ≥ 22** (macOS, Linux hoặc Windows) và một trình duyệt có WebGL2 (Chrome, Edge, Firefox, Safari mới).
 - `npm ci` tải thêm Chrome for Testing (Puppeteer) để chạy benchmark.
-- Đã đo: 114–137 FPS trung bình ở 1280×720 trên laptop Ryzen 5 5500U với GPU tích hợp (xem [bench](#benchmark-và-soak)).
+- Đã đo: 122 FPS trung bình trong cảnh bench (200 Bóng Mực) ở 1280×720 trên laptop Ryzen 5 5500U với GPU tích hợp (xem [bench](#benchmark-và-soak)).
 
 ## Cài đặt và chơi (3 lệnh)
 
@@ -73,10 +73,10 @@ Kết quả thật trên máy của tôi; máy chấm sẽ khác. Log thô và p
 
 | | Kết quả | Ngưỡng |
 |---|---|---|
-| avg_fps / p1_low_fps / load_ms | **114.1 / 47.3 / 3891** (lần đo lại: 136.9 / 70.3 / 2991) | ≥ 60 / ≥ 30 / ≤ 10000 → đạt |
-| peak_mem_mb | 615.9 (cả cây tiến trình Chrome) | — |
+| avg_fps / p1_low_fps / load_ms | **122.4 / 67.9 / 4184** | ≥ 60 / ≥ 30 / ≤ 10000 → đạt |
+| peak_mem_mb | 591.1 (cả cây tiến trình Chrome) | — |
 | soak crashes | **0** | = 0 → đạt |
-| soak mem_start → mem_end | **43.9 → 57.2 MB (×1.30)** | ≤ ×1.2 → **chưa đạt** |
+| soak mem_start → mem_end | **43.8 → 53.0 MB (×1.21)** | ≤ ×1.2 → **chưa đạt (sát ngưỡng)** |
 
 Về soak: JS heap đứng yên qua 40 đêm, nên đây không phải rò rỉ. Phần RSS tăng là mã JIT của V8 (với `--jitless` chỉ ×1.03). Mình giữ cấu hình Node mặc định và ghi kết quả thật.
 

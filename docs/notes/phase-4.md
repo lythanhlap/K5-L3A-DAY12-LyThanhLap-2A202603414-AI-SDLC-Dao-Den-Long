@@ -191,3 +191,14 @@ Thay đổi từ phiên làm việc khác (nhà nhỏ có va chạm, mưa và s�
 | bench.json đo trước khi thêm nón lá | Chạy lại bench và soak chính thức trên commit cuối (xem log trong `docs/proof/phase-4/`) |
 
 - **Va chạm chưa hoàn thiện:** chỉ chặn Mây. Bóng Mực và Gió Lạc vẫn bay xuyên nhà và cây (khi bật tùy chọn).
+
+### Kết quả chính thức cuối cùng (commit `4e730f7`, đã tắt server dev)
+
+| | Kết quả | Ngưỡng | Đạt? |
+|---|---|---|---|
+| avg_fps / p1_low_fps / load_ms | 122.4 / 67.9 / 4184 | ≥ 60 / ≥ 30 / ≤ 10000 | Đạt |
+| peak_mem_mb | 591.1 | — | |
+| soak crashes | 0 | = 0 | Đạt |
+| soak mem | 43.8 → 53.0 MB (×1.21) | ≤ ×1.2 (52.56) | **Chưa đạt** (phân tích JIT ở trên vẫn đúng) |
+
+`bench.json`, `soak.json` và log thô nằm trong `docs/proof/phase-4/`.
