@@ -7,6 +7,7 @@ import { makePlayer, animatePlayer } from './character.js';
 import { buildWorld } from './world.js';
 import { PAL, ambientFor } from './palette.js';
 import { initAudio, setVolume, sfx } from './audio.js';
+import { createBackdrop } from './backdrop.js';
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -85,7 +86,9 @@ const moon = new THREE.DirectionalLight('#9aa8ff', 0.5);
 moon.position.set(-30, 50, -20);
 scene.add(moon);
 
+const backdrop = createBackdrop(scene);
 const playerMesh = makePlayer();
+window.__render = { playerMesh, camera }; // debug/verification hook (read-only use)
 scene.add(playerMesh);
 
 // entity visuals
@@ -289,6 +292,8 @@ function loadNight(n) {
   }
   camYaw = 0;
   lastSecond = null;
+  prevPos.clear();
+  shownFacing = 0;
 }
 
 function startIntro(n) {
@@ -404,12 +409,32 @@ function handleEvents(events) {
 
 // ---------------------------------------------------------------- per-frame visuals
 let lastT = 0;
+// Render interpolation: the sim ticks at 60 Hz but the screen refreshes faster (e.g. 144 Hz).
+// Draw entities between their previous and current tick positions so motion is smooth.
+const prevPos = new Map(); // id -> [x,y,z] at the previous sim tick
+let alpha = 1;
+function rememberPositions() {
+  prevPos.set('player', [...game.player.pos]);
+  for (const s of game.shades) prevPos.set(s.id, [...s.pos]);
+  for (const d of game.drifters) prevPos.set(d.id, [...d.pos]);
+}
+function lerpPos(id, cur) {
+  const a = prevPos.get(id);
+  if (!a || Math.hypot(cur[0] - a[0], cur[1] - a[1], cur[2] - a[2]) > 3) return cur; // teleport/respawn: snap
+  return [a[0] + (cur[0] - a[0]) * alpha, a[1] + (cur[1] - a[1]) * alpha, a[2] + (cur[2] - a[2]) * alpha];
+}
+let shownFacing = 0;
 function syncEntities(t, dt) {
   const p = game.player;
-  const speed = Math.hypot(p.pos[0] - playerMesh.position.x, p.pos[2] - playerMesh.position.z) / Math.max(dt, 1e-3);
+  const pp = lerpPos('player', p.pos);
+  const speed = Math.hypot(pp[0] - playerMesh.position.x, pp[2] - playerMesh.position.z) / Math.max(dt, 1e-3);
   animatePlayer(playerMesh, phase === 'playing' && p.grounded ? speed : 0, dt);
-  playerMesh.position.set(...p.pos);
-  playerMesh.rotation.y = p.facing;
+  playerMesh.position.set(...pp);
+  // turn smoothly along the shortest arc (~0.1 s for a half turn)
+  let dA = p.facing - shownFacing;
+  dA = Math.atan2(Math.sin(dA), Math.cos(dA));
+  shownFacing += dA * Math.min(1, dt * 18);
+  playerMesh.rotation.y = shownFacing;
   playerMesh.visible = p.respawn === 0 && (p.invuln === 0 || Math.floor(t * 12) % 2 === 0);
   playerMesh.userData.glow.intensity = 2 + p.carried;
 
@@ -437,7 +462,8 @@ function syncEntities(t, dt) {
       scene.add(mesh);
       shadeMeshes.set(s.id, mesh);
     }
-    mesh.position.set(s.pos[0], s.pos[1] + 0.1 * Math.sin(t * 3), s.pos[2]);
+    const sp = lerpPos(s.id, s.pos);
+    mesh.position.set(sp[0], sp[1] + 0.1 * Math.sin(t * 3), sp[2]);
     mesh.lookAt(p.pos[0], s.pos[1], p.pos[2]);
     const u = mesh.userData;
     const stunned = s.state === 'stunned';
@@ -459,7 +485,8 @@ function syncEntities(t, dt) {
       drifterMeshes.set(d.id, mesh);
     }
     mesh.visible = d.state !== 'removed';
-    mesh.position.set(d.pos[0], d.pos[1] + 0.2 * Math.sin(t * 4), d.pos[2]);
+    const dpos = lerpPos(d.id, d.pos);
+    mesh.position.set(dpos[0], dpos[1] + 0.2 * Math.sin(t * 4), dpos[2]);
     mesh.rotation.y = t * 2;
     mesh.children.forEach((r, i) => (r.rotation.z = Math.sin(t * 6 + i) * 0.5));
   }
@@ -526,7 +553,7 @@ function syncEntities(t, dt) {
 let windWasWarning = false;
 
 function updateCamera() {
-  const p = game ? game.player.pos : [0, 0, 0];
+  const p = game ? lerpPos('player', game.player.pos) : [0, 0, 0];
   const th = (camYaw * Math.PI) / 180;
   const f = [Math.sin(th), Math.cos(th)];
   const y = Math.max(p[1], -4);
@@ -621,10 +648,16 @@ function frame(now) {
     acc += dt;
     if (pauseQueued) acc = Math.max(acc, DT);
     while (acc >= DT && (phase === 'playing' || pauseQueued)) {
+      rememberPositions();
       handleEvents(step(game, sampleInput()));
       acc -= DT;
     }
-  } else acc = 0;
+    alpha = phase === 'playing' ? Math.min(1, acc / DT) : 1;
+  } else {
+    acc = 0;
+    alpha = 1;
+  }
+  if (game) backdrop.update(now / 1000, lerpPos('player', game.player.pos), night);
   if (pulseFx > 0) pulseFx = Math.max(0, pulseFx - dt / 0.35);
   if (game) {
     syncEntities(now / 1000, now / 1000 - lastT);
