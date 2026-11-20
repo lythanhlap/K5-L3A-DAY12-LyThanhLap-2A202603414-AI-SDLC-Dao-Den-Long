@@ -1,130 +1,155 @@
-// Browser renderer: drives the same deterministic sim (src/sim/game.js) at a fixed 60 Hz.
+// Browser renderer + UI flow. Drives the deterministic sim (src/sim/game.js) at a fixed 60 Hz.
+// Rules never live here: this file only reads sim state and feeds input.
 import * as THREE from 'three';
-import { createGame, step, timeLeft } from '../sim/game.js';
-import { TICK_RATE, TUNING, WORLD } from '../sim/tuning.js';
+import { createGame, step, timeLeft, windWarning, NIGHTS } from '../sim/game.js';
+import { TICK_RATE, TUNING, RULES } from '../sim/tuning.js';
 import { makePlayer, animatePlayer } from './character.js';
+import { buildWorld } from './world.js';
+import { PAL, ambientFor } from './palette.js';
+import { initAudio, setVolume, sfx } from './audio.js';
 
 const $ = (id) => document.getElementById(id);
+const params = new URLSearchParams(location.search);
 
-// ---------- renderer / scene ----------
+// ---------------------------------------------------------------- settings (persisted)
+const SETTINGS_KEY = 'ddl-settings';
+const settings = { volume: 0.6, sens: 0.5 };
+try {
+  Object.assign(settings, JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}'));
+} catch {}
+const saveSettings = () => {
+  try {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  } catch {}
+};
+$('set-volume').value = settings.volume;
+$('set-sens').value = settings.sens;
+$('set-volume').addEventListener('input', (e) => {
+  settings.volume = Number(e.target.value);
+  setVolume(settings.volume);
+  saveSettings();
+});
+$('set-sens').addEventListener('input', (e) => {
+  settings.sens = Number(e.target.value);
+  saveSettings();
+});
+
+// ---------------------------------------------------------------- renderer / scene
 const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
 renderer.setSize(innerWidth, innerHeight);
 document.body.prepend(renderer.domElement);
-
 const scene = new THREE.Scene();
-const NIGHT = new THREE.Color('#120a1f');
-const DAWNISH = new THREE.Color('#3b2a4f');
-scene.background = NIGHT.clone();
-scene.fog = new THREE.FogExp2(NIGHT.clone(), 0.035);
-const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 300);
+scene.background = new THREE.Color(PAL.sky);
+scene.fog = new THREE.FogExp2(PAL.fog, 0.012);
+const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 400);
 addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
 });
-
-const hemi = new THREE.HemisphereLight('#7a6aaa', '#1a1028', 0.9);
+const hemi = new THREE.HemisphereLight('#c9d4ff', PAL.sea, 0.15);
 scene.add(hemi);
-const moon = new THREE.DirectionalLight('#9aa8ff', 0.35);
-moon.position.set(-20, 30, -10);
+const moon = new THREE.DirectionalLight('#9aa8ff', 0.5);
+moon.position.set(-30, 50, -20);
 scene.add(moon);
 
-// island + sea of clouds
-const island = new THREE.Mesh(
-  new THREE.CylinderGeometry(WORLD.islandRadius, WORLD.islandRadius - 3, 3, 64),
-  new THREE.MeshStandardMaterial({ color: '#2f3d3a', roughness: 1 }),
-);
-island.position.y = -1.5;
-scene.add(island);
-const clouds = new THREE.Mesh(
-  new THREE.CircleGeometry(200, 48),
-  new THREE.MeshStandardMaterial({ color: '#4b3b6b', roughness: 1 }),
-);
-clouds.rotation.x = -Math.PI / 2;
-clouds.position.y = -6;
-scene.add(clouds);
-// a few rocks/bushes for depth (decorative, fixed layout)
-const deco = new THREE.MeshStandardMaterial({ color: '#25302e', roughness: 1 });
-for (let i = 0; i < 24; i++) {
-  const a = i * 2.39996;
-  const r = 6 + ((i * 7) % 22);
-  const m = new THREE.Mesh(new THREE.DodecahedronGeometry(0.5 + (i % 3) * 0.3), deco);
-  m.position.set(r * Math.sin(a), 0.2, r * Math.cos(a));
-  scene.add(m);
-}
-
-// ---------- entity meshes ----------
 const playerMesh = makePlayer();
 scene.add(playerMesh);
 
-const lanternMeshes = new Map();
+// entity visuals
+const moteGeo = new THREE.SphereGeometry(0.12, 8, 6);
+const moteMat = new THREE.MeshBasicMaterial({ color: PAL.moteCore });
+const haloGeo = new THREE.SphereGeometry(0.35, 8, 6);
+const haloMat = new THREE.MeshBasicMaterial({ color: PAL.moteHalo, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false });
+const shadeGeo = new THREE.SphereGeometry(0.75, 20, 14);
+const rimGeo = new THREE.SphereGeometry(0.85, 20, 14);
+const eyeGeo = new THREE.SphereGeometry(0.1, 8, 6);
+const eyeMat = new THREE.MeshBasicMaterial({ color: '#e8d8ff' });
+
+function makeShade() {
+  const g = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color: PAL.shadeBody, emissive: PAL.shadeEdge, emissiveIntensity: 0.15 });
+  const rimMat = new THREE.MeshBasicMaterial({ color: PAL.shadeEdge, side: THREE.BackSide, transparent: true, opacity: 0.6 });
+  const body = new THREE.Mesh(shadeGeo, mat);
+  const rim = new THREE.Mesh(rimGeo, rimMat);
+  const e1 = new THREE.Mesh(eyeGeo, eyeMat);
+  const e2 = new THREE.Mesh(eyeGeo, eyeMat);
+  e1.position.set(0.25, 0.15, 0.68);
+  e2.position.set(-0.25, 0.15, 0.68);
+  g.add(body, rim, e1, e2);
+  g.userData = { mat, rimMat, body, rim };
+  return g;
+}
 function makeLantern() {
   const g = new THREE.Group();
-  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 3, 8), new THREE.MeshStandardMaterial({ color: '#4a3020' }));
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 3, 8), new THREE.MeshStandardMaterial({ color: PAL.wood }));
   post.position.y = 1.5;
-  const mat = new THREE.MeshStandardMaterial({ color: '#5a3a5e', emissive: '#ff8a2a', emissiveIntensity: 0 });
+  const mat = new THREE.MeshStandardMaterial({ color: PAL.lanternOff, emissive: PAL.lanternLit, emissiveIntensity: 0 });
   const paper = new THREE.Mesh(new THREE.SphereGeometry(0.6, 16, 12), mat);
   paper.scale.set(1, 1.25, 1);
   paper.position.y = 3.4;
-  const light = new THREE.PointLight('#ffa040', 0, 16, 1.4);
-  light.position.y = 3.4;
+  const core = new THREE.Mesh(new THREE.SphereGeometry(0.25, 10, 8), new THREE.MeshBasicMaterial({ color: PAL.lanternCore }));
+  core.position.y = 3.4;
+  const light = new THREE.PointLight(PAL.lanternLit, 0, 20, 1.3);
+  light.position.y = 3.6;
   const ring = new THREE.Mesh(
     new THREE.RingGeometry(TUNING.safe_radius - 0.12, TUNING.safe_radius, 64),
-    new THREE.MeshBasicMaterial({ color: '#ffb347', transparent: true, opacity: 0, side: THREE.DoubleSide }),
+    new THREE.MeshBasicMaterial({ color: PAL.lanternLit, transparent: true, opacity: 0, side: THREE.DoubleSide }),
   );
   ring.rotation.x = -Math.PI / 2;
-  ring.position.y = 0.03;
-  g.add(post, paper, light, ring);
-  g.userData = { mat, light, ring };
+  ring.position.y = 0.05;
+  g.add(post, paper, core, light, ring);
+  g.userData = { mat, light, ring, core };
   return g;
 }
-
-const moteGeo = new THREE.SphereGeometry(0.12, 8, 6);
-const moteMat = new THREE.MeshBasicMaterial({ color: '#fff3a0' });
-const haloGeo = new THREE.SphereGeometry(0.35, 8, 6);
-const haloMat = new THREE.MeshBasicMaterial({ color: '#ffd24a', transparent: true, opacity: 0.25, blending: THREE.AdditiveBlending, depthWrite: false });
-const moteMeshes = new Map();
-
-const shadeGeo = new THREE.SphereGeometry(0.75, 20, 14);
-const eyeGeo = new THREE.SphereGeometry(0.1, 8, 6);
-const eyeMat = new THREE.MeshBasicMaterial({ color: '#e8d8ff' });
-const shadeMeshes = new Map();
-function makeShade() {
+function makeDrifter() {
   const g = new THREE.Group();
-  const mat = new THREE.MeshStandardMaterial({ color: '#1a0d2a', emissive: '#5b1f8a', emissiveIntensity: 0.6, transparent: true, opacity: 0.92 });
-  const body = new THREE.Mesh(shadeGeo, mat);
-  const e1 = new THREE.Mesh(eyeGeo, eyeMat);
-  const e2 = new THREE.Mesh(eyeGeo, eyeMat);
-  e1.position.set(0.25, 0.15, 0.65);
-  e2.position.set(-0.25, 0.15, 0.65);
-  g.add(body, e1, e2);
-  g.userData = { mat, body };
+  const m = new THREE.MeshBasicMaterial({ color: PAL.drifter, transparent: true, opacity: 0.75, side: THREE.DoubleSide });
+  for (let i = 0; i < 3; i++) {
+    const r = new THREE.Mesh(new THREE.PlaneGeometry(0.18, 1.8, 1, 6), m);
+    r.position.x = (i - 1) * 0.25;
+    r.rotation.x = Math.PI / 2;
+    g.add(r);
+  }
   return g;
 }
-
+function makeCharm() {
+  const g = new THREE.Group();
+  const border = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.92), new THREE.MeshBasicMaterial({ color: PAL.gold, side: THREE.DoubleSide }));
+  const paper = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.8), new THREE.MeshBasicMaterial({ color: PAL.scarf, side: THREE.DoubleSide }));
+  paper.position.z = 0.01;
+  g.add(border, paper);
+  return g;
+}
 const pulseRing = new THREE.Mesh(
   new THREE.RingGeometry(0.85, 1, 64),
-  new THREE.MeshBasicMaterial({ color: '#ffd27a', transparent: true, opacity: 0, side: THREE.DoubleSide, blending: THREE.AdditiveBlending }),
+  new THREE.MeshBasicMaterial({ color: PAL.lanternCore, transparent: true, opacity: 0, side: THREE.DoubleSide, blending: THREE.AdditiveBlending }),
 );
 pulseRing.rotation.x = -Math.PI / 2;
-pulseRing.position.y = 0.1;
 scene.add(pulseRing);
 let pulseFx = 0;
 
-// ---------- input ----------
+// wind leaves
+const LEAVES = 120;
+const leafGeo = new THREE.BufferGeometry();
+leafGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(LEAVES * 3), 3));
+const leaves = new THREE.Points(leafGeo, new THREE.PointsMaterial({ color: '#9bc47a', size: 0.25, transparent: true, opacity: 0 }));
+scene.add(leaves);
+
+// ---------------------------------------------------------------- input
 const keys = new Set();
-const buttons = { jump: false, interact: false, pulse: false };
-let camYaw = 0; // degrees, contract convention
+let camYaw = 0;
 let mouseDown = false;
 let mousePulse = false;
 let lastMouseX = 0;
 let dragged = 0;
-
+let pauseQueued = false;
 addEventListener('keydown', (e) => {
   keys.add(e.code);
-  if (e.code === 'Space') e.preventDefault();
-  if (phase !== 'playing' && (e.code === 'Enter' || e.code === 'KeyR')) startGame();
+  if (e.code === 'Space' || e.code.startsWith('Arrow')) e.preventDefault();
+  if ((e.code === 'Escape' || e.code === 'KeyP') && (phase === 'playing' || phase === 'paused')) togglePause();
+  if (e.code === 'F3') $('fps').classList.toggle('hidden');
 });
 addEventListener('keyup', (e) => keys.delete(e.code));
 addEventListener('blur', () => keys.clear());
@@ -142,86 +167,204 @@ addEventListener('mousemove', (e) => {
   const dx = e.clientX - lastMouseX;
   lastMouseX = e.clientX;
   dragged += Math.abs(dx);
-  camYaw -= dx * 0.3;
+  camYaw -= dx * settings.sens * 0.6;
 });
-$('overlay').addEventListener('click', () => phase !== 'playing' && startGame());
 
 function sampleInput() {
   if (keys.has('ArrowLeft')) camYaw += 2;
   if (keys.has('ArrowRight')) camYaw -= 2;
-  // Camera looks along +forward; screen-right corresponds to input x = -1 (see contract rotation).
   let x = 0;
   let z = 0;
   if (keys.has('KeyW') || keys.has('ArrowUp')) z += 1;
   if (keys.has('KeyS') || keys.has('ArrowDown')) z -= 1;
-  if (keys.has('KeyD')) x -= 1;
+  if (keys.has('KeyD')) x -= 1; // screen-right = input x -1 (contract rotation, camera looks along +forward)
   if (keys.has('KeyA')) x += 1;
-  const pulse = keys.has('KeyF') || mousePulse;
-  mousePulse = false;
-  return {
+  const input = {
     move: [x, z],
     cam_yaw_deg: camYaw,
     jump: keys.has('Space'),
     interact: keys.has('KeyE'),
-    pulse,
+    pulse: keys.has('KeyF') || mousePulse,
+    dash: keys.has('ShiftLeft') || keys.has('ShiftRight'),
+    pause: pauseQueued,
   };
+  mousePulse = false;
+  pauseQueued = false;
+  return input;
 }
 
-// ---------- game lifecycle ----------
+// ---------------------------------------------------------------- game flow
+const INTRO = {
+  1: 'Ông Đăng: "Đảo Bến là nơi đèn lồng đầu tiên được thắp. Bắt đầu từ đây nhé, Mây."',
+  2: 'Ông Đăng: "Đảo Cau có hai nửa, nối bằng cầu tre. Coi chừng Gió Lạc. Chúng thích đồ sáng lấp lánh."',
+  3: 'Ông Đăng: "Đảo Chuông cao và lộng gió. Lên tới tháp chuông thì cả biển mây sẽ thấy ánh sáng của con."',
+};
+let phase = 'menu'; // menu | intro | playing | paused | result | dawn
+let settingsReturn = 'menu';
+let night = 1;
+let totalScore = 0;
 let game = null;
-let phase = 'menu'; // menu | playing | over
-const seedParam = new URLSearchParams(location.search).get('seed');
+let world = null;
+const baseSeed = params.get('seed') != null ? Number(params.get('seed')) : Date.now() & 0x7fffffff;
+const lanternMeshes = new Map();
+const moteMeshes = new Map();
+const shadeMeshes = new Map();
+const drifterMeshes = new Map();
+const charmMeshes = new Map();
+
+function show(id) {
+  for (const s of document.querySelectorAll('.screen')) s.classList.toggle('hidden', s.id !== id);
+  $('hudroot').classList.toggle('hidden', !(phase === 'playing' || phase === 'paused'));
+}
 
 function clearMap(map) {
   for (const m of map.values()) scene.remove(m);
   map.clear();
 }
 
-function startGame() {
-  const seed = seedParam != null ? Number(seedParam) : (Date.now() & 0x7fffffff);
-  game = createGame({ seed });
+function loadNight(n) {
+  night = n;
+  game = createGame({ seed: baseSeed + n, night: n });
   window.__game = game;
-  clearMap(moteMeshes);
-  clearMap(shadeMeshes);
-  clearMap(lanternMeshes);
+  if (world) scene.remove(world);
+  world = buildWorld(n);
+  scene.add(world);
+  for (const m of [moteMeshes, shadeMeshes, lanternMeshes, drifterMeshes, charmMeshes]) clearMap(m);
   for (const l of game.lanterns) {
     const m = makeLantern();
-    m.position.set(l.pos[0], l.pos[1], l.pos[2]);
+    m.position.set(...l.pos);
     scene.add(m);
     lanternMeshes.set(l.id, m);
   }
+  for (const c of game.charms) {
+    const m = makeCharm();
+    scene.add(m);
+    charmMeshes.set(c.id, m);
+  }
   camYaw = 0;
-  phase = 'playing';
-  $('overlay').classList.add('hidden');
+  lastSecond = null;
 }
 
+function startIntro(n) {
+  loadNight(n);
+  phase = 'intro';
+  $('intro-title').textContent = `Đêm ${n}: ${NIGHTS[n].name}`;
+  $('intro-quote').textContent = INTRO[n];
+  show('scr-intro');
+}
+
+function togglePause() {
+  pauseQueued = true;
+  if (phase === 'paused') {
+    // the sim only toggles on a false->true edge: deliver the release first (a no-op step while paused)
+    step(game, { move: [0, 0], cam_yaw_deg: camYaw, pause: false });
+    phase = 'playing';
+    show(null);
+  }
+}
+
+const actions = {
+  play: () => {
+    initAudio();
+    setVolume(settings.volume);
+    totalScore = 0;
+    startIntro(1);
+  },
+  'start-night': () => {
+    phase = 'playing';
+    show(null);
+  },
+  resume: () => togglePause(),
+  restart: () => startIntro(night),
+  menu: () => {
+    phase = 'menu';
+    show('scr-menu');
+  },
+  settings: () => {
+    settingsReturn = phase === 'paused' ? 'scr-pause' : 'scr-menu';
+    show('scr-settings');
+  },
+  'settings-back': () => show(settingsReturn),
+  next: () => {
+    if (game.state === 'won') {
+      if (night < 3) startIntro(night + 1);
+      else {
+        phase = 'dawn';
+        $('dawn-score').textContent = totalScore;
+        show('scr-dawn');
+      }
+    } else startIntro(night);
+  },
+};
+for (const b of document.querySelectorAll('[data-act]')) b.addEventListener('click', () => actions[b.dataset.act]());
+addEventListener('keydown', (e) => {
+  if (e.code !== 'Enter') return;
+  const visible = [...document.querySelectorAll('.screen')].find((s) => !s.classList.contains('hidden'));
+  visible?.querySelector('button')?.click();
+});
+
+let lastSecond = null;
 function handleEvents(events) {
   for (const e of events) {
-    if (e.name === 'pulse') pulseFx = 1;
-    if (e.name === 'game_over') {
-      phase = 'over';
-      const won = e.data.result === 'won';
-      const reason = { all_lit: 'Mọi Đèn Lồng Lớn đã sáng!', dawn: 'Bình minh đã tới khi đảo còn tối.', no_flames: 'Mây đã mất hết lửa.' }[e.data.reason];
-      $('ov-title').textContent = won ? 'Đảo đã sáng lại!' : 'Đêm chưa qua…';
-      $('ov-body').innerHTML = `${reason}<br/>Điểm: <b>${game.score}</b>`;
-      $('overlay').querySelector('p').innerHTML = '<b>Nhấn R / Enter hoặc click để chơi lại</b>';
-      setTimeout(() => $('overlay').classList.remove('hidden'), 600);
+    switch (e.name) {
+      case 'mote_picked':
+        sfx.pickup();
+        break;
+      case 'deposit':
+        sfx.deposit();
+        break;
+      case 'lantern_lit':
+        sfx.lit();
+        break;
+      case 'pulse':
+        sfx.pulse();
+        pulseFx = 1;
+        break;
+      case 'player_hit':
+        sfx.hit();
+        break;
+      case 'dash':
+        sfx.dash();
+        break;
+      case 'shade_spawned':
+        sfx.shade();
+        break;
+      case 'drifter_steal':
+        sfx.steal();
+        break;
+      case 'charm_picked':
+        sfx.charm();
+        break;
+      case 'paused':
+        phase = 'paused';
+        show('scr-pause');
+        break;
+      case 'game_over': {
+        const won = e.data.result === 'won';
+        if (won) totalScore += game.score;
+        (won ? sfx.win : sfx.lose)();
+        phase = 'result';
+        const reason = { all_lit: 'Mọi Đèn Lồng Lớn đã sáng!', dawn: 'Bình minh tới khi đảo còn tối.', no_flames: 'Mây đã mất hết Ngọn Lửa.' }[e.data.reason];
+        $('res-title').textContent = won ? `Đêm ${night} đã sáng!` : `Đêm ${night} chưa qua…`;
+        $('res-body').innerHTML = `${reason}<br/>Điểm đêm: <b>${game.score}</b> · Tổng: <b>${totalScore}</b>`;
+        $('res-next').textContent = won ? (night < 3 ? 'Đêm tiếp theo' : 'Đón bình minh') : 'Chơi lại Đêm';
+        setTimeout(() => show('scr-result'), 700);
+        break;
+      }
     }
   }
 }
 
-// ---------- sync visuals ----------
+// ---------------------------------------------------------------- per-frame visuals
 let lastT = 0;
-function syncEntities(t) {
+function syncEntities(t, dt) {
   const p = game.player;
-  const dt = Math.min(0.1, Math.max(1e-3, t - lastT));
-  lastT = t;
-  const speed = Math.hypot(p.pos[0] - playerMesh.position.x, p.pos[2] - playerMesh.position.z) / dt;
-  animatePlayer(playerMesh, phase === 'playing' ? speed : 0, dt);
-  playerMesh.position.set(p.pos[0], p.pos[1], p.pos[2]);
+  const speed = Math.hypot(p.pos[0] - playerMesh.position.x, p.pos[2] - playerMesh.position.z) / Math.max(dt, 1e-3);
+  animatePlayer(playerMesh, phase === 'playing' && p.grounded ? speed : 0, dt);
+  playerMesh.position.set(...p.pos);
   playerMesh.rotation.y = p.facing;
-  playerMesh.visible = p.invuln === 0 || Math.floor(t * 12) % 2 === 0;
-  playerMesh.userData.glow.intensity = 2 + p.carried * 2;
+  playerMesh.visible = p.respawn === 0 && (p.invuln === 0 || Math.floor(t * 12) % 2 === 0);
+  playerMesh.userData.glow.intensity = 2 + p.carried;
 
   const seen = new Set();
   for (const m of game.motes) {
@@ -233,8 +376,8 @@ function syncEntities(t) {
       scene.add(mesh);
       moteMeshes.set(m.id, mesh);
     }
-    const ph = Number(m.id.slice(1));
-    mesh.position.set(m.pos[0], 0.7 + 0.2 * Math.sin(t * 2 + ph), m.pos[2]);
+    mesh.position.set(m.pos[0], m.pos[1] + 0.7 + 0.2 * Math.sin(t * 2 + Number(m.id.slice(1))), m.pos[2]);
+    mesh.visible = m.ttl == null || m.ttl > 120 || Math.floor(t * 8) % 2 === 0;
   }
   for (const [id, mesh] of moteMeshes) if (!seen.has(id)) (scene.remove(mesh), moteMeshes.delete(id));
 
@@ -249,83 +392,188 @@ function syncEntities(t) {
     }
     mesh.position.set(s.pos[0], s.pos[1] + 0.1 * Math.sin(t * 3), s.pos[2]);
     mesh.lookAt(p.pos[0], s.pos[1], p.pos[2]);
+    const u = mesh.userData;
     const stunned = s.state === 'stunned';
-    mesh.userData.body.scale.set(1, stunned ? 0.55 : 1, 1);
-    mesh.userData.mat.emissive.set(stunned ? '#b9a0ff' : '#5b1f8a');
-    mesh.userData.mat.opacity = stunned ? 0.5 : 0.92;
+    u.mat.color.set(stunned ? PAL.shadeStunned : PAL.shadeBody);
+    u.rimMat.opacity = stunned ? 0.2 : 0.6;
+    const k = s.state === 'spawning' ? 1 - s.t / RULES.spawningTicks : 1;
+    mesh.scale.setScalar(Math.max(0.05, k));
+    u.body.scale.y = stunned ? 0.6 : 1;
   }
   for (const [id, mesh] of shadeMeshes) if (!seen.has(id)) (scene.remove(mesh), shadeMeshes.delete(id));
+
+  seen.clear();
+  for (const d of game.drifters) {
+    seen.add(d.id);
+    let mesh = drifterMeshes.get(d.id);
+    if (!mesh) {
+      mesh = makeDrifter();
+      scene.add(mesh);
+      drifterMeshes.set(d.id, mesh);
+    }
+    mesh.visible = d.state !== 'removed';
+    mesh.position.set(d.pos[0], d.pos[1] + 0.2 * Math.sin(t * 4), d.pos[2]);
+    mesh.rotation.y = t * 2;
+    mesh.children.forEach((r, i) => (r.rotation.z = Math.sin(t * 6 + i) * 0.5));
+  }
+  for (const [id, mesh] of drifterMeshes) if (!seen.has(id)) (scene.remove(mesh), drifterMeshes.delete(id));
+
+  for (const c of game.charms) {
+    const mesh = charmMeshes.get(c.id);
+    mesh.visible = c.available;
+    mesh.position.set(c.pos[0], c.pos[1] + 1 + 0.15 * Math.sin(t * 2), c.pos[2]);
+    mesh.rotation.y = t * 1.5;
+  }
 
   let lit = 0;
   for (const l of game.lanterns) {
     const u = lanternMeshes.get(l.id).userData;
     const f = l.lit ? 1 : l.deposited / TUNING.lantern_cost;
-    u.mat.emissiveIntensity = l.lit ? 2.2 : f * 0.6;
-    u.mat.color.set(l.lit ? '#ff9a3a' : '#5a3a5e');
-    u.light.intensity = l.lit ? 60 : f * 6;
+    u.mat.color.set(l.lit ? PAL.lanternLit : PAL.lanternOff);
+    u.mat.emissiveIntensity = l.lit ? 1.6 : f * 0.5;
+    u.core.visible = l.lit;
+    u.light.intensity = l.lit ? 80 : f * 8;
     u.ring.material.opacity = l.lit ? 0.35 : 0;
     if (l.lit) lit++;
   }
-  // island brightens as lanterns are lit
-  const k = lit / game.lanterns.length;
-  scene.background.copy(NIGHT).lerp(DAWNISH, k);
-  scene.fog.color.copy(scene.background);
-  scene.fog.density = 0.035 - 0.02 * k;
-  hemi.intensity = 0.9 + 1.2 * k;
+  hemi.intensity = ambientFor(lit, game.lanterns.length);
 
   if (pulseFx > 0) {
     const s = (1 - pulseFx) * TUNING.pulse_radius + 0.5;
     pulseRing.scale.set(s, s, s);
-    pulseRing.position.x = p.pos[0];
-    pulseRing.position.z = p.pos[2];
+    pulseRing.position.set(p.pos[0], p.pos[1] + 0.1, p.pos[2]);
     pulseRing.material.opacity = pulseFx;
   } else pulseRing.material.opacity = 0;
+
+  // wind leaves (warning 2 s before + during gust)
+  const warn = windWarning(game);
+  const active = game.wind.active;
+  leaves.material.opacity = active ? 0.9 : warn ? 0.5 : 0;
+  if (warn || active) {
+    const a = (game.wind.dir * Math.PI) / 180;
+    const arr = leafGeo.attributes.position.array;
+    for (let i = 0; i < LEAVES; i++) {
+      const ph = (t * (active ? 0.6 : 0.3) + i / LEAVES) % 1;
+      const side = ((i * 37) % 30) - 15;
+      const along = (ph - 0.5) * 40;
+      arr[i * 3] = p.pos[0] + Math.cos(a) * along - Math.sin(a) * side;
+      arr[i * 3 + 1] = p.pos[1] + 0.5 + ((i * 13) % 5);
+      arr[i * 3 + 2] = p.pos[2] + Math.sin(a) * along + Math.cos(a) * side;
+    }
+    leafGeo.attributes.position.needsUpdate = true;
+    if (warn && !windWasWarning) sfx.wind();
+  }
+  windWasWarning = warn;
 }
+let windWasWarning = false;
 
 function updateCamera() {
   const p = game ? game.player.pos : [0, 0, 0];
   const th = (camYaw * Math.PI) / 180;
   const f = [Math.sin(th), Math.cos(th)];
-  camera.position.set(p[0] - f[0] * 9, p[1] + 5.5, p[2] - f[1] * 9);
-  camera.lookAt(p[0] + f[0] * 2, p[1] + 1.2, p[2] + f[1] * 2);
+  const y = Math.max(p[1], -4);
+  camera.position.set(p[0] - f[0] * 9, y + 5.5, p[2] - f[1] * 9);
+  camera.lookAt(p[0] + f[0] * 2, y + 1.2, p[2] + f[1] * 2);
 }
 
+const v3 = new THREE.Vector3();
 function updateHud() {
   const p = game.player;
-  $('flames').textContent = '●'.repeat(Math.max(0, p.flames)) + '○'.repeat(Math.max(0, TUNING.flames - p.flames));
-  $('carried').textContent = `${p.carried} / ${TUNING.carry_capacity}`;
-  $('lanterns').innerHTML = game.lanterns
-    .map((l) => `<span class="${l.lit ? 'lit' : ''}">${l.id} ${l.lit ? '✓' : `${l.deposited}/${TUNING.lantern_cost}`}</span>`)
-    .join('');
+  $('flames').textContent = '🔥'.repeat(Math.max(0, p.flames)) + '·'.repeat(Math.max(0, TUNING.flames - p.flames));
   const tl = Math.max(0, timeLeft(game));
-  $('time').textContent = `${Math.floor(tl / 60)}:${String(Math.floor(tl % 60)).padStart(2, '0')}`;
-  $('score').textContent = game.score;
-  $('pulse').textContent = p.pulseCd > 0 ? 'đang hồi…' : p.carried >= TUNING.pulse_cost ? 'sẵn sàng (F)' : 'cần đom đóm';
+  const clock = $('clock');
+  clock.textContent = `${String(Math.floor(tl / 60)).padStart(2, '0')}:${String(Math.floor(tl % 60)).padStart(2, '0')}`;
+  clock.classList.toggle('danger', tl <= 30);
+  const sec = Math.ceil(tl);
+  if (phase === 'playing' && sec <= 10 && sec !== lastSecond && sec > 0) sfx.tick();
+  lastSecond = sec;
+  const lit = game.lanterns.filter((l) => l.lit).length;
+  $('topright').innerHTML = `Đèn <b>${lit}/${game.lanterns.length}</b><br/>Điểm <b>${game.score}</b><br/><small>Tổng ${totalScore}</small>`;
+  const bar = $('motebar');
+  if (bar.children.length !== TUNING.carry_capacity) bar.innerHTML = '<i></i>'.repeat(TUNING.carry_capacity);
+  [...bar.children].forEach((c, i) => c.classList.toggle('on', i < p.carried));
+  const cd = (id, left, total, ready) => {
+    const el = $(id);
+    el.querySelector('.fill').style.height = `${Math.min(1, left / total) * 100}%`;
+    el.classList.toggle('ready', ready);
+  };
+  cd('cd-dash', p.charm > 0 ? 0 : p.dashCd, TUNING.dash_cooldown_s * TICK_RATE, p.dashCd === 0 || p.charm > 0);
+  cd('cd-pulse', p.pulseCd, TUNING.pulse_cooldown_s * TICK_RATE, p.pulseCd === 0 && p.carried >= TUNING.pulse_cost);
+  $('banner').textContent = p.charm > 0 ? `Bùa Gió ${Math.ceil(p.charm / 60)} s` : windWarning(game) ? 'Gió sắp nổi…' : game.wind.active ? 'Gió mạnh!' : '';
+
   const near = game.lanterns.find((l) => !l.lit && Math.hypot(l.pos[0] - p.pos[0], l.pos[2] - p.pos[2]) <= TUNING.interact_radius);
-  $('hint').textContent = near ? (p.carried > 0 ? `E: nạp ánh sáng vào ${near.id}` : `${near.id} cần đom đóm`) : '';
+  const pr = $('prompt');
+  pr.classList.toggle('hidden', !near);
+  if (near) pr.textContent = `E — Nạp ánh sáng (${near.deposited}/${TUNING.lantern_cost})`;
+
+  // arrow to nearest unlit lantern when off-screen
+  let target = null;
+  let best = Infinity;
+  for (const l of game.lanterns) {
+    if (l.lit) continue;
+    const d = Math.hypot(l.pos[0] - p.pos[0], l.pos[2] - p.pos[2]);
+    if (d < best) {
+      best = d;
+      target = l;
+    }
+  }
+  const arrow = $('arrow');
+  if (!target) return arrow.classList.add('hidden');
+  v3.set(target.pos[0], target.pos[1] + 3, target.pos[2]).project(camera);
+  const behind = v3.z > 1;
+  const on = !behind && Math.abs(v3.x) < 0.95 && Math.abs(v3.y) < 0.95;
+  arrow.classList.toggle('hidden', on);
+  if (!on) {
+    let x = behind ? -v3.x : v3.x;
+    let y = behind ? -v3.y : v3.y;
+    const m = Math.max(Math.abs(x), Math.abs(y)) / 0.88;
+    x /= m;
+    y /= m;
+    const sx = ((x + 1) / 2) * innerWidth;
+    const sy = ((1 - y) / 2) * innerHeight;
+    arrow.style.left = `${sx - 14}px`;
+    arrow.style.top = `${sy - 14}px`;
+    arrow.style.transform = `rotate(${Math.atan2(x, y)}rad)`;
+  }
 }
 
-// ---------- main loop (fixed 60 Hz) ----------
+// ---------------------------------------------------------------- main loop (fixed 60 Hz)
 let acc = 0;
 let last = performance.now();
 const DT = 1 / TICK_RATE;
+const fps = { frames: 0, t0: performance.now(), avg: 0, samples: [] };
+window.__fps = fps;
+if (params.has('fps')) $('fps').classList.remove('hidden');
 function frame(now) {
   const dt = Math.min(0.1, (now - last) / 1000);
   last = now;
-  if (phase === 'playing') {
+  if (game && (phase === 'playing' || pauseQueued)) {
     acc += dt;
-    while (acc >= DT && phase === 'playing') {
+    if (pauseQueued) acc = Math.max(acc, DT);
+    while (acc >= DT && (phase === 'playing' || pauseQueued)) {
       handleEvents(step(game, sampleInput()));
       acc -= DT;
     }
   } else acc = 0;
   if (pulseFx > 0) pulseFx = Math.max(0, pulseFx - dt / 0.35);
   if (game) {
-    syncEntities(now / 1000);
-    updateHud();
+    syncEntities(now / 1000, now / 1000 - lastT);
+    lastT = now / 1000;
+    if (phase === 'playing' || phase === 'paused') updateHud();
   }
   updateCamera();
   renderer.render(scene, camera);
+  fps.frames++;
+  if (now - fps.t0 >= 1000) {
+    fps.samples.push((fps.frames * 1000) / (now - fps.t0));
+    if (fps.samples.length > 60) fps.samples.shift();
+    fps.avg = fps.samples.reduce((a, b) => a + b, 0) / fps.samples.length;
+    $('fps').textContent = `${fps.samples.at(-1).toFixed(0)} FPS (avg ${fps.avg.toFixed(1)}) ${innerWidth}×${innerHeight}`;
+    fps.frames = 0;
+    fps.t0 = now;
+  }
   requestAnimationFrame(frame);
 }
+loadNight(1);
+show('scr-menu');
 requestAnimationFrame(frame);

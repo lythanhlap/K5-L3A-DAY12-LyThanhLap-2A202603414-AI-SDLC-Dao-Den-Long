@@ -5,40 +5,107 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Đảo Đèn Lồng</title>
     <style>
-      html, body { margin: 0; height: 100%; overflow: hidden; background: #0d0818; font-family: system-ui, sans-serif; color: #fbe9c8; }
+      :root { --text: #F5F1E6; --danger: #FF5A5F; --gold: #F2C14E; --panel: rgba(14, 20, 48, 0.72); }
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #0E1430; font-family: system-ui, sans-serif; color: var(--text); user-select: none; }
       canvas { display: block; }
-      #hud { position: fixed; top: 12px; left: 12px; padding: 10px 14px; background: rgba(20, 10, 35, 0.6); border-radius: 10px; line-height: 1.6; font-size: 15px; pointer-events: none; min-width: 210px; }
-      #hud b { color: #ffc46b; }
-      #lanterns span { display: inline-block; margin-right: 6px; padding: 0 5px; border-radius: 4px; background: rgba(80, 50, 110, 0.6); font-size: 13px; }
-      #lanterns span.lit { background: #e8902c; color: #2a1200; }
-      #hint { position: fixed; bottom: 40px; width: 100%; text-align: center; font-size: 18px; text-shadow: 0 0 6px #000; pointer-events: none; }
-      #overlay { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(10, 5, 20, 0.72); }
-      #overlay .card { max-width: 460px; padding: 24px 28px; border-radius: 14px; background: rgba(40, 22, 60, 0.92); text-align: center; line-height: 1.6; }
-      #overlay h1 { margin: 0 0 8px; color: #ffc46b; font-size: 28px; }
-      #overlay kbd { background: #fbe9c8; color: #2a1640; border-radius: 4px; padding: 0 5px; font-size: 13px; }
+      .hud { position: fixed; pointer-events: none; text-shadow: 0 1px 3px #000; }
+      #flames { top: 14px; left: 16px; font-size: 26px; letter-spacing: 4px; color: var(--gold); }
+      #clock { top: 12px; left: 50%; transform: translateX(-50%); font-size: 30px; font-weight: 700; font-variant-numeric: tabular-nums; }
+      #clock.danger { color: var(--danger); animation: blink 0.8s steps(2, start) infinite; }
+      @keyframes blink { to { visibility: hidden; } }
+      #topright { top: 14px; right: 16px; text-align: right; font-size: 18px; line-height: 1.5; }
+      #topright b { color: var(--gold); font-size: 22px; }
+      #motebar { bottom: 18px; left: 50%; transform: translateX(-50%); display: flex; gap: 5px; }
+      #motebar i { width: 22px; height: 22px; border-radius: 50%; border: 2px solid rgba(245, 241, 230, 0.4); background: rgba(14, 20, 48, 0.5); }
+      #motebar i.on { background: radial-gradient(#FFF6C2, #FFE58A); border-color: #FFE58A; box-shadow: 0 0 8px #FFE58A; }
+      #cds { bottom: 16px; right: 18px; display: flex; gap: 10px; }
+      .cd { position: relative; width: 52px; height: 52px; border-radius: 10px; background: var(--panel); border: 2px solid rgba(245, 241, 230, 0.35); overflow: hidden; display: grid; place-items: center; font-size: 12px; font-weight: 700; }
+      .cd .fill { position: absolute; left: 0; bottom: 0; width: 100%; background: rgba(0, 0, 0, 0.6); }
+      .cd span { position: relative; }
+      .cd.ready { border-color: var(--gold); }
+      #prompt { bottom: 62px; left: 50%; transform: translateX(-50%); font-size: 19px; background: var(--panel); padding: 4px 14px; border-radius: 8px; }
+      #arrow { width: 0; height: 0; border-left: 14px solid transparent; border-right: 14px solid transparent; border-bottom: 28px solid #FFB347; filter: drop-shadow(0 0 6px #FFB347); }
+      #banner { top: 70px; left: 50%; transform: translateX(-50%); font-size: 18px; color: var(--gold); }
+      #fps { bottom: 4px; left: 6px; font-size: 12px; opacity: 0.7; }
+      .screen { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(8, 10, 28, 0.7); }
+      .card { min-width: 320px; max-width: 520px; padding: 26px 30px; border-radius: 16px; background: rgba(27, 35, 80, 0.95); border: 1px solid rgba(242, 193, 78, 0.4); text-align: center; line-height: 1.6; }
+      .card h1 { margin: 0 0 6px; color: var(--gold); font-size: 30px; }
+      .card h2 { margin: 0 0 10px; color: var(--gold); }
+      .card p.quote { font-style: italic; opacity: 0.9; }
+      .card button { display: block; width: 100%; margin: 8px 0; padding: 10px; font: inherit; font-weight: 700; border: 0; border-radius: 10px; background: var(--gold); color: #1B2350; cursor: pointer; }
+      .card button.alt { background: transparent; color: var(--text); border: 1px solid rgba(245, 241, 230, 0.4); }
+      .card label { display: block; text-align: left; margin: 10px 0; }
+      .card input[type=range] { width: 100%; }
+      kbd { background: var(--text); color: #1B2350; border-radius: 4px; padding: 0 5px; font-size: 13px; }
       .hidden { display: none !important; }
     </style>
   </head>
   <body>
-    <div id="hud">
-      <div>Lửa: <b id="flames"></b></div>
-      <div>Đom đóm: <b id="carried"></b></div>
-      <div>Đèn: <span id="lanterns"></span></div>
-      <div>Thời gian: <b id="time"></b></div>
-      <div>Điểm: <b id="score"></b></div>
-      <div>Tỏa sáng: <b id="pulse"></b></div>
+    <div id="hudroot" class="hidden">
+      <div id="flames" class="hud"></div>
+      <div id="clock" class="hud"></div>
+      <div id="topright" class="hud"></div>
+      <div id="banner" class="hud"></div>
+      <div id="prompt" class="hud hidden"></div>
+      <div id="motebar" class="hud"></div>
+      <div id="cds" class="hud">
+        <div class="cd" id="cd-dash"><div class="fill"></div><span>Lướt<br />Shift</span></div>
+        <div class="cd" id="cd-pulse"><div class="fill"></div><span>Sáng<br />F</span></div>
+      </div>
+      <div id="arrow" class="hud hidden"></div>
     </div>
-    <div id="hint"></div>
-    <div id="overlay">
+    <div id="fps" class="hud hidden"></div>
+
+    <div id="scr-menu" class="screen">
       <div class="card">
-        <h1 id="ov-title">Đảo Đèn Lồng</h1>
-        <div id="ov-body">
-          Đêm 1, Đảo Bến. Giúp Mây gom đom đóm và thắp lại 5 Đèn Lồng Lớn trước bình minh.<br />
-          Né Bóng Mực tím đen. Chúng sợ đèn đã thắp.<br /><br />
-          <kbd>WASD</kbd> di chuyển · <kbd>Space</kbd> nhảy · <kbd>E</kbd> nạp đèn<br />
-          <kbd>F</kbd> / chuột trái: tỏa sáng · kéo chuột / <kbd>←</kbd><kbd>→</kbd> xoay camera
-        </div>
-        <p><b>Nhấn Enter hoặc click để bắt đầu</b></p>
+        <h1>Đảo Đèn Lồng</h1>
+        <p>Ba đêm, ba hòn đảo. Giúp Mây gom đom đóm và thắp lại các Đèn Lồng Lớn trước bình minh.</p>
+        <p style="font-size:14px">
+          <kbd>WASD</kbd> đi · <kbd>Space</kbd> nhảy · <kbd>Shift</kbd> lướt · <kbd>E</kbd> nạp đèn<br />
+          <kbd>F</kbd>/click: tỏa sáng · kéo chuột/<kbd>←</kbd><kbd>→</kbd>: camera · <kbd>Esc</kbd>/<kbd>P</kbd>: tạm dừng
+        </p>
+        <button data-act="play">Chơi</button>
+        <button class="alt" data-act="settings">Cài đặt</button>
+      </div>
+    </div>
+    <div id="scr-intro" class="screen hidden">
+      <div class="card">
+        <h2 id="intro-title"></h2>
+        <p class="quote" id="intro-quote"></p>
+        <button data-act="start-night">Bắt đầu</button>
+      </div>
+    </div>
+    <div id="scr-pause" class="screen hidden">
+      <div class="card">
+        <h2>Tạm dừng</h2>
+        <button data-act="resume">Tiếp tục</button>
+        <button class="alt" data-act="restart">Chơi lại Đêm</button>
+        <button class="alt" data-act="settings">Cài đặt</button>
+        <button class="alt" data-act="menu">Về menu</button>
+      </div>
+    </div>
+    <div id="scr-settings" class="screen hidden">
+      <div class="card">
+        <h2>Cài đặt</h2>
+        <label>Âm lượng <input id="set-volume" type="range" min="0" max="1" step="0.05" /></label>
+        <label>Độ nhạy chuột <input id="set-sens" type="range" min="0.1" max="1.5" step="0.05" /></label>
+        <button data-act="settings-back">Xong</button>
+      </div>
+    </div>
+    <div id="scr-result" class="screen hidden">
+      <div class="card">
+        <h2 id="res-title"></h2>
+        <p id="res-body"></p>
+        <button id="res-next" data-act="next">Đêm tiếp theo</button>
+        <button class="alt" data-act="menu">Về menu</button>
+      </div>
+    </div>
+    <div id="scr-dawn" class="screen hidden" style="background: linear-gradient(#FFB347cc, #1B2350ee)">
+      <div class="card">
+        <h1>Bình Minh</h1>
+        <p>Ba hòn đảo đã sáng lại. Ông Đăng mỉm cười nhìn mặt trời lên.</p>
+        <p>Tổng điểm: <b id="dawn-score" style="color: var(--gold); font-size: 28px"></b></p>
+        <button data-act="menu">Về menu</button>
       </div>
     </div>
     <script type="module" src="/src/web/main.js"></script>

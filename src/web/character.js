@@ -1,17 +1,18 @@
 // Mây as a panda warrior (visual only, built from primitives; reference: game_charactor/*.png).
 // Model faces +Z, feet at y = 0. Carries a small lantern on the sash (no hat, by owner decision).
 import * as THREE from 'three';
+import { PAL } from './palette.js';
 
 const std = (color, extra = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.8, ...extra });
 const M = {
   fur: std('#f2efe6'),
   black: std('#1b1b1f'),
-  teal: std('#2f7a76'),
-  red: std('#b8402e'),
+  teal: std(PAL.robe), // Áo Mây (standard palette)
+  red: std(PAL.scarf), // khăn Mây (standard palette)
   cream: std('#e9dfbf'),
   leather: std('#5a3b22'),
   bronze: std('#a37a3c', { metalness: 0.6, roughness: 0.45 }),
-  gold: std('#c9a23f', { metalness: 0.7, roughness: 0.35 }),
+  gold: std(PAL.gold, { metalness: 0.7, roughness: 0.35 }),
 };
 
 function mesh(geo, mat, x = 0, y = 0, z = 0) {
@@ -66,7 +67,8 @@ export function makePlayer() {
   medal.rotation.x = Math.PI / 2;
   root.add(medal);
   // collar
-  const collar = mesh(new THREE.TorusGeometry(0.3, 0.07, 8, 20), M.bronze, 0, 1.36, 0);
+  const collar = mesh(new THREE.TorusGeometry(0.3, 0.08, 8, 20), M.red, 0, 1.36, 0); // scarf
+  root.add(mesh(new THREE.BoxGeometry(0.12, 0.35, 0.05), M.red, 0.18, 1.18, 0.4)); // scarf tail
   collar.rotation.x = Math.PI / 2;
   root.add(collar);
 
