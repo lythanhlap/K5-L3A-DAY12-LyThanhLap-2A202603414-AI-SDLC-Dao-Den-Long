@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.env
+.env.*
+*.log
+out/
+docs/proof/ci-check/
+docs/proof/*/runs/.rerun/
